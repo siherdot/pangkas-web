@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
 import { setStatus } from "@/lib/store";
-import type { BookingStatus } from "@/lib/catalog";
+import type { BookingStatus } from "@/lib/store";
 
 export async function PATCH(
   request: Request,

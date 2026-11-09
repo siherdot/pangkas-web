@@ -1,131 +1,98 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { Settings } from "@/lib/shared";
+import BookingsTab from "./tabs/bookings-tab";
+import ServicesTab from "./tabs/services-tab";
+import BarbersTab from "./tabs/barbers-tab";
+import ShopTab from "./tabs/shop-tab";
 
-type Row = {
-  id: string;
-  code: string;
-  name: string;
-  phone: string;
-  serviceId: string;
-  barberId: string;
-  date: string;
-  time: string;
-  status: "pending" | "confirmed" | "done" | "cancelled";
-  note?: string;
-  createdAt: string;
-  serviceName: string;
-  servicePrice: number;
-  serviceDuration: number;
-  barberName: string;
-};
+type Tab = "booking" | "layanan" | "barber" | "situs";
 
-const STATUS_LABEL: Record<Row["status"], string> = {
-  pending: "Baru",
-  confirmed: "Terkonfirmasi",
-  done: "Selesai",
-  cancelled: "Batal",
-};
+const TABS: { id: Tab; label: string }[] = [
+  { id: "booking", label: "Booking" },
+  { id: "layanan", label: "Layanan & Harga" },
+  { id: "barber", label: "Barber" },
+  { id: "situs", label: "Info Website" },
+];
 
-const STATUS_STYLE: Record<Row["status"], string> = {
-  pending: "bg-amber-100 text-amber-800 border-amber-200",
-  confirmed: "bg-blue-100 text-blue-800 border-blue-200",
-  done: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  cancelled: "bg-zinc-100 text-zinc-500 border-zinc-200 line-through",
-};
-
-function rupiah(n: number) {
-  return "Rp" + n.toLocaleString("id-ID");
-}
-
-function prettyDate(iso: string) {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("id-ID", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-export default function Dashboard({ today }: { today: string }) {
-  const [date, setDate] = useState(today);
-  const [allDates, setAllDates] = useState(false);
-  const [q, setQ] = useState("");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+export default function Dashboard({
+  today,
+  initialSettings,
+}: {
+  today: string;
+  initialSettings: Settings;
+}) {
+  const [tab, setTab] = useState<Tab>("booking");
+  const [draft, setDraft] = useState<Settings>(initialSettings);
+  const [saved, setSaved] = useState<Settings>(initialSettings);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [toast, setToast] = useState("");
   const router = useRouter();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 3500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [dirty]);
+
+  const save = useCallback(async () => {
+    setSaving(true);
+    setErrors([]);
     try {
-      const params = new URLSearchParams();
-      if (!allDates && date) params.set("date", date);
-      if (q.trim()) params.set("q", q.trim());
-      const res = await fetch(`/api/bookings?${params}`, { cache: "no-store" });
+      const res = await fetch("/api/admin/catalog", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+      });
       if (res.status === 401) {
         router.replace("/admin/login");
         return;
       }
-      if (!res.ok) throw new Error("gagal");
-      setRows((await res.json()) as Row[]);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const list = Array.isArray(data?.errors)
+          ? data.errors.map(
+              (e: { field: string; message: string }) =>
+                `${e.field}: ${e.message}`,
+            )
+          : [data?.message || "Gagal menyimpan."];
+        setErrors(list);
+        return;
+      }
+      setSaved(data.settings as Settings);
+      setDraft(data.settings as Settings);
+      setToast("Tersimpan. Halaman depan langsung memakai data baru.");
+      router.refresh();
     } catch {
-      setError("Gagal memuat data. Coba refresh.");
+      setErrors(["Gagal menghubungi server."]);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
-  }, [date, q, allDates, router]);
-
-  useEffect(() => {
-    const t = setTimeout(() => void load(), 250);
-    return () => clearTimeout(t);
-  }, [load]);
-
-  const stats = useMemo(() => {
-    const revenue = rows
-      .filter((r) => r.status === "done")
-      .reduce((s, r) => s + r.servicePrice, 0);
-    return {
-      total: rows.filter((r) => r.status !== "cancelled").length,
-      pending: rows.filter((r) => r.status === "pending").length,
-      confirmed: rows.filter((r) => r.status === "confirmed").length,
-      done: rows.filter((r) => r.status === "done").length,
-      revenue,
-    };
-  }, [rows]);
-
-  const byBarber = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of rows) {
-      if (r.status === "cancelled") continue;
-      map.set(r.barberName, (map.get(r.barberName) ?? 0) + 1);
-    }
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [rows]);
-
-  async function update(id: string, status: Row["status"]) {
-    const res = await fetch(`/api/bookings/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    if (res.ok) {
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
-    }
-  }
+  }, [draft, router]);
 
   async function logout() {
     await fetch("/api/admin/logout", { method: "POST" });
     router.replace("/admin/login");
   }
 
-  const nextUp = rows
-    .filter((r) => r.status === "confirmed" || r.status === "pending")
-    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0];
+  const shopLabel = `${draft.shop.name} ${draft.shop.tagline}`.trim();
 
   return (
     <main className="flex-1 bg-cream">
@@ -135,7 +102,7 @@ export default function Dashboard({ today }: { today: string }) {
             <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white">
               <Image
                 src="/logo.png"
-                alt="Hair Style Studio"
+                alt={shopLabel}
                 width={44}
                 height={32}
                 className="h-7 w-auto object-contain"
@@ -144,14 +111,25 @@ export default function Dashboard({ today }: { today: string }) {
             <div>
               <p className="display text-xl leading-none">Dashboard</p>
               <p className="text-[11px] uppercase tracking-[0.2em] text-ink/40">
-                Pangkas Hair Style Studio
+                {shopLabel}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-sm">
-            <Link href="/" className="text-ink/50 hover:text-ink">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Link
+              href="/"
+              target="_blank"
+              className="text-ink/50 hover:text-ink"
+            >
               Lihat situs
             </Link>
+            <button
+              onClick={() => void save()}
+              disabled={!dirty || saving}
+              className="rounded-full bg-brass px-4 py-2 font-semibold text-ink transition hover:bg-brass-soft disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {saving ? "Menyimpan…" : dirty ? "Simpan perubahan" : "Tersimpan"}
+            </button>
             <button
               onClick={() => void logout()}
               className="rounded-full border border-ink/15 px-4 py-2 font-semibold hover:border-ink/40"
@@ -160,203 +138,68 @@ export default function Dashboard({ today }: { today: string }) {
             </button>
           </div>
         </div>
+
+        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-5">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={
+                "whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold transition " +
+                (tab === t.id
+                  ? "border-brass text-ink"
+                  : "border-transparent text-ink/45 hover:text-ink/70")
+              }
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-5 py-8">
-        {/* FILTER */}
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">
-            <span className="block text-xs font-semibold uppercase tracking-wider text-ink/40">
-              Tanggal
-            </span>
-            <input
-              type="date"
-              value={date}
-              disabled={allDates}
-              onChange={(e) => setDate(e.target.value)}
-              className="mt-1 rounded-xl border border-ink/15 bg-white px-3 py-2 outline-none focus:border-brass disabled:opacity-40"
-            />
-          </label>
-          <label className="flex items-center gap-2 pb-2 text-sm text-ink/60">
-            <input
-              type="checkbox"
-              checked={allDates}
-              onChange={(e) => setAllDates(e.target.checked)}
-              className="h-4 w-4 accent-brass"
-            />
-            Semua tanggal
-          </label>
-          <label className="min-w-[180px] flex-1 text-sm">
-            <span className="block text-xs font-semibold uppercase tracking-wider text-ink/40">
-              Cari
-            </span>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Nama, kode booking, atau nomor HP"
-              className="mt-1 w-full rounded-xl border border-ink/15 bg-white px-3 py-2 outline-none focus:border-brass"
-            />
-          </label>
-          <button
-            onClick={() => void load()}
-            className="rounded-xl border border-ink/15 bg-white px-4 py-2 text-sm font-semibold hover:border-ink/40"
-          >
-            Refresh
-          </button>
-        </div>
-
-        {/* STATS */}
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["Booking aktif", String(stats.total), `${stats.pending} baru · ${stats.confirmed} konfirmasi`],
-            ["Selesai", String(stats.done), "sudah dilayani"],
-            ["Pendapatan", rupiah(stats.revenue), "dari booking selesai"],
-            [
-              "Barber tersibuk",
-              byBarber[0]?.[0] ?? "—",
-              byBarber[0] ? `${byBarber[0][1]} booking` : "belum ada",
-            ],
-          ].map(([title, value, sub]) => (
-            <div key={title} className="rounded-2xl border border-ink/10 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink/40">
-                {title}
-              </p>
-              <p className="display mt-2 text-4xl">{value}</p>
-              <p className="mt-1 text-xs text-ink/45">{sub}</p>
-            </div>
-          ))}
-        </div>
-
-        {nextUp && (
-          <div className="mt-4 rounded-2xl border border-brass/40 bg-brass/10 p-4 text-sm">
-            <span className="font-bold">Berikutnya:</span> {nextUp.name} —{" "}
-            {nextUp.serviceName}, {prettyDate(nextUp.date)} {nextUp.time} bersama{" "}
-            {nextUp.barberName} ({nextUp.code})
+        {toast && (
+          <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {toast}
+          </div>
+        )}
+        {errors.length > 0 && (
+          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="font-semibold">Belum bisa disimpan:</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {errors.map((e) => (
+                <li key={e}>{e}</li>
+              ))}
+            </ul>
           </div>
         )}
 
-        {/* TABLE */}
-        <div className="mt-6 overflow-hidden rounded-2xl border border-ink/10 bg-white">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-cream text-xs uppercase tracking-wider text-ink/45">
-                <tr>
-                  <th className="px-4 py-3">Jadwal</th>
-                  <th className="px-4 py-3">Kode</th>
-                  <th className="px-4 py-3">Pelanggan</th>
-                  <th className="px-4 py-3">Layanan</th>
-                  <th className="px-4 py-3">Barber</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-ink/40">
-                      Memuat…
-                    </td>
-                  </tr>
-                )}
-                {!loading && error && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-red-600">
-                      {error}
-                    </td>
-                  </tr>
-                )}
-                {!loading && !error && rows.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-ink/40">
-                      Belum ada booking untuk filter ini.
-                    </td>
-                  </tr>
-                )}
-                {!loading &&
-                  !error &&
-                  rows.map((r) => (
-                    <tr key={r.id} className="border-t border-ink/5 align-top">
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <span className="font-semibold">{r.time}</span>
-                        <span className="block text-xs text-ink/45">
-                          {prettyDate(r.date)}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">
-                        {r.code}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-semibold">{r.name}</span>
-                        <a
-                          href={`https://wa.me/${r.phone.replace(/\D/g, "").replace(/^0/, "62")}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block text-xs text-moss underline-offset-2 hover:underline"
-                        >
-                          {r.phone}
-                        </a>
-                        {r.note && (
-                          <span className="mt-1 block text-xs text-ink/45">
-                            “{r.note}”
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {r.serviceName}
-                        <span className="block text-xs text-ink/45">
-                          {rupiah(r.servicePrice)} · {r.serviceDuration} mnt
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">{r.barberName}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-block rounded-full border px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[r.status]}`}
-                        >
-                          {STATUS_LABEL[r.status]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap justify-end gap-1.5">
-                          {r.status === "pending" && (
-                            <button
-                              onClick={() => void update(r.id, "confirmed")}
-                              className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-                            >
-                              Konfirmasi
-                            </button>
-                          )}
-                          {(r.status === "pending" || r.status === "confirmed") && (
-                            <>
-                              <button
-                                onClick={() => void update(r.id, "done")}
-                                className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-                              >
-                                Selesai
-                              </button>
-                              <button
-                                onClick={() => void update(r.id, "cancelled")}
-                                className="rounded-lg border border-ink/15 px-2.5 py-1.5 text-xs font-semibold text-ink/60 hover:border-red-300 hover:text-red-600"
-                              >
-                                Batal
-                              </button>
-                            </>
-                          )}
-                          {(r.status === "done" || r.status === "cancelled") && (
-                            <span className="text-xs text-ink/30">—</span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {tab === "booking" && <BookingsTab today={today} />}
+        {tab === "layanan" && (
+          <ServicesTab
+            services={draft.services}
+            onChange={(services) => setDraft({ ...draft, services })}
+          />
+        )}
+        {tab === "barber" && (
+          <BarbersTab
+            barbers={draft.barbers}
+            onChange={(barbers) => setDraft({ ...draft, barbers })}
+          />
+        )}
+        {tab === "situs" && (
+          <ShopTab
+            shop={draft.shop}
+            onChange={(shop) => setDraft({ ...draft, shop })}
+          />
+        )}
 
-        <p className="mt-4 text-xs text-ink/40">
-          Booking tersimpan di berkas data server (volume <code>data/</code>).
-          Halaman ini tidak diindeks mesin pencari.
-        </p>
+        {tab !== "booking" && (
+          <p className="mt-6 text-xs text-ink/40">
+            Perubahan disimpan ke berkas data di volume server. Tekan
+            “Simpan perubahan” di kanan atas setelah selesai mengedit.
+          </p>
+        )}
       </div>
     </main>
   );

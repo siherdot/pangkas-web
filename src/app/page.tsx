@@ -1,15 +1,26 @@
 import Image from "next/image";
 import Link from "next/link";
 import BookingForm from "@/components/booking-form";
-import { BARBERS, SERVICES, SHOP } from "@/lib/catalog";
+import { activeServices, readSettings, rupiah } from "@/lib/settings";
 
-function rupiah(n: number) {
-  return "Rp" + n.toLocaleString("id-ID");
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  const { shop } = await readSettings();
+  return {
+    title: `${shop.name} ${shop.tagline} — ${shop.city}`,
+    description: shop.heroSubline,
+  };
 }
 
-export default function Home() {
-  const waChat = `https://wa.me/${SHOP.whatsapp}?text=${encodeURIComponent(
-    `Halo ${SHOP.name}, saya mau tanya soal booking.`,
+export default async function Home() {
+  const settings = await readSettings();
+  const { shop } = settings;
+  const services = activeServices(settings);
+  const barbers = settings.barbers.filter((b) => b.active !== false);
+  const cheapest = services.length ? Math.min(...services.map((s) => s.price)) : 0;
+  const waChat = `https://wa.me/${shop.whatsapp}?text=${encodeURIComponent(
+    `Halo ${shop.name}, saya mau tanya soal booking.`,
   )}`;
 
   return (
@@ -20,16 +31,16 @@ export default function Home() {
           <Link href="/" className="flex items-center gap-3">
             <Image
               src="/logo.png"
-              alt="Hair Style Studio"
+              alt={shop.name}
               width={76}
               height={56}
               className="h-11 w-auto object-contain"
               priority
             />
             <span className="leading-none">
-              <span className="display block text-2xl">{SHOP.name}</span>
+              <span className="display block text-2xl">{shop.name}</span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-ink/50">
-                {SHOP.tagline}
+                {shop.tagline}
               </span>
             </span>
           </Link>
@@ -62,17 +73,13 @@ export default function Home() {
         <div className="relative mx-auto grid max-w-6xl gap-10 px-5 py-16 md:grid-cols-[1.15fr_0.85fr] md:py-24">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brass">
-              Hair Style Studio — {SHOP.city}
+              {shop.tagline} — {shop.city}
             </p>
             <h1 className="display mt-5 text-6xl sm:text-7xl md:text-8xl">
-              Potong Rapi
-              <br />
-              <span className="text-brass">Tanpa Antre Lama</span>
+              {shop.heroHeadline}
             </h1>
             <p className="mt-6 max-w-xl text-base text-cream/70 sm:text-lg">
-              Pilih layanan, pilih barber favorit, tentukan jamnya dari HP.
-              Pas datang, kursi sudah siap — tidak perlu menunggu giliran di
-              tempat.
+              {shop.heroSubline}
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <a
@@ -90,15 +97,20 @@ export default function Home() {
             </div>
             <div className="mt-9 flex flex-wrap gap-8 text-sm">
               <div>
-                <p className="display text-3xl text-brass">10–21</p>
-                <p className="text-cream/50">Jum &amp; Min 14–22</p>
+                <p className="display text-3xl text-brass">
+                  {String(shop.schedule["1"].open).padStart(2, "0")}–
+                  {shop.schedule["1"].close}
+                </p>
+                <p className="text-cream/50">Sen–Kam &amp; Sab</p>
               </div>
               <div>
-                <p className="display text-3xl text-brass">Mulai Rp25rb</p>
+                <p className="display text-3xl text-brass">
+                  {cheapest ? rupiah(cheapest) : "—"}
+                </p>
                 <p className="text-cream/50">Harga transparan</p>
               </div>
               <div>
-                <p className="display text-3xl text-brass">3 Barber</p>
+                <p className="display text-3xl text-brass">{barbers.length} Barber</p>
                 <p className="text-cream/50">Bisa pilih sendiri</p>
               </div>
             </div>
@@ -118,7 +130,7 @@ export default function Home() {
               </p>
               <p className="mt-3 text-sm text-cream/50">— Rizky, pelanggan</p>
               <div className="mt-6 grid grid-cols-3 gap-2">
-                {BARBERS.map((b) => (
+                {barbers.slice(0, 3).map((b) => (
                   <div
                     key={b.id}
                     className="rounded-2xl border border-cream/10 bg-cream/5 p-3 text-center"
@@ -152,7 +164,7 @@ export default function Home() {
         </div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {SERVICES.map((s) => (
+          {services.map((s) => (
             <div
               key={s.id}
               className="group relative rounded-3xl border border-ink/10 bg-white p-6 transition hover:-translate-y-1 hover:shadow-lg"
@@ -197,7 +209,7 @@ export default function Home() {
             </p>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            {BARBERS.map((b) => (
+            {barbers.map((b) => (
               <div
                 key={b.id}
                 className="rounded-3xl border border-cream/15 bg-cream/5 p-6"
@@ -249,10 +261,11 @@ export default function Home() {
             </ul>
           </div>
           <BookingForm
-            services={SERVICES}
-            barbers={BARBERS}
-            whatsapp={SHOP.whatsapp}
-            shopName={SHOP.name}
+            services={services}
+            barbers={barbers}
+            schedule={shop.schedule}
+            whatsapp={shop.whatsapp}
+            shopName={`${shop.name} ${shop.tagline}`}
           />
         </div>
       </section>
@@ -262,12 +275,12 @@ export default function Home() {
         <div className="mx-auto grid max-w-6xl gap-8 px-5 py-14 md:grid-cols-3">
           <div>
             <h3 className="display text-2xl">Alamat</h3>
-            <p className="mt-2 text-sm text-ink/60">{SHOP.address}</p>
+            <p className="mt-2 text-sm text-ink/60">{shop.address}</p>
           </div>
           <div>
             <h3 className="display text-2xl">Jam buka</h3>
-            <p className="mt-2 text-sm text-ink/60">
-              {SHOP.hoursText} WIB.
+            <p className="mt-2 whitespace-pre-line text-sm text-ink/60">
+              {shop.hoursNote} WIB.
             </p>
           </div>
           <div>
@@ -275,10 +288,10 @@ export default function Home() {
             <p className="mt-2 text-sm text-ink/60">
               WhatsApp{" "}
               <a className="font-semibold text-ink hover:text-brass" href={waChat}>
-                +{SHOP.whatsapp}
+                +{shop.whatsapp}
               </a>
               <br />
-              Instagram {SHOP.instagram}
+              Instagram {shop.instagram}
             </p>
           </div>
         </div>
@@ -287,7 +300,7 @@ export default function Home() {
       <footer className="bg-ink py-10 text-cream">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 sm:flex-row">
           <p className="text-sm text-cream/50">
-            © {new Date().getFullYear()} {SHOP.name} {SHOP.tagline}. Semua hak
+            © {new Date().getFullYear()} {shop.name} {shop.tagline}. Semua hak
             dilindungi.
           </p>
           <div className="flex items-center gap-6 text-sm">

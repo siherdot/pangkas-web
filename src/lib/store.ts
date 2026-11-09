@@ -2,19 +2,35 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import {
-  BARBERS,
-  SERVICES,
-  SHOP,
+  activeServices,
+  readSettings,
   scheduleFor,
-  serviceById,
-  type Booking,
-  type BookingStatus,
-} from "./catalog";
+  type Settings,
+} from "./settings";
+
+export type BookingStatus = "pending" | "confirmed" | "done" | "cancelled";
+
+export type Booking = {
+  id: string;
+  code: string;
+  name: string;
+  phone: string;
+  serviceId: string;
+  barberId: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  status: BookingStatus;
+  note?: string;
+  createdAt: string;
+  /** salinan nama/harga saat booking dibuat, supaya riwayat tidak berubah */
+  serviceName?: string;
+  servicePrice?: number;
+  barberName?: string;
+};
 
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), ".data");
 const FILE = path.join(DATA_DIR, "bookings.json");
 
-// antrean sederhana: tulis file satu per satu supaya tidak saling menimpa
 let queue: Promise<unknown> = Promise.resolve();
 
 type Db = { bookings: Booking[] };
@@ -54,11 +70,12 @@ export function timeOf(minutes: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Semua slot mulai yang mungkin untuk satu tanggal (mengikuti jadwal hari itu). */
-export function slotStarts(date: string) {
-  const { open, close } = scheduleFor(date);
+/** Semua slot mulai yang mungkin untuk satu tanggal, sesuai jam buka hari itu. */
+export function slotStarts(date: string, settings: Settings) {
+  const { open, close } = scheduleFor(date, settings.shop.schedule);
+  const step = settings.shop.slotStep || 30;
   const out: string[] = [];
-  for (let m = open * 60; m < close * 60; m += SHOP.slotStep) out.push(timeOf(m));
+  for (let m = open * 60; m < close * 60; m += step) out.push(timeOf(m));
   return out;
 }
 
@@ -67,17 +84,18 @@ function overlaps(aStart: number, aDur: number, bStart: number, bDur: number) {
 }
 
 export async function availability(date: string, serviceId: string) {
-  const service = serviceById(serviceId);
+  const settings = await readSettings();
+  const service = settings.services.find((s) => s.id === serviceId);
   const dur = service?.duration ?? 30;
-  const { close } = scheduleFor(date);
+  const { close } = scheduleFor(date, settings.shop.schedule);
   const db = await readDb();
   const active = db.bookings.filter(
     (b) => b.date === date && b.status !== "cancelled",
   );
   const result: Record<string, Record<string, boolean>> = {};
-  for (const barber of BARBERS) {
+  for (const barber of settings.barbers.filter((b) => b.active !== false)) {
     result[barber.id] = {};
-    for (const slot of slotStarts(date)) {
+    for (const slot of slotStarts(date, settings)) {
       const start = minutesOf(slot);
       if (start + dur > close * 60) {
         result[barber.id][slot] = false;
@@ -90,7 +108,7 @@ export async function availability(date: string, serviceId: string) {
             start,
             dur,
             minutesOf(b.time),
-            serviceById(b.serviceId)?.duration ?? 30,
+            settings.services.find((s) => s.id === b.serviceId)?.duration ?? 30,
           ),
       );
       result[barber.id][slot] = !clash;
@@ -110,6 +128,16 @@ export type CreateBookingInput = {
 };
 
 export async function createBooking(input: CreateBookingInput) {
+  const settings = await readSettings();
+  const service = settings.services.find(
+    (s) => s.id === input.serviceId && s.active !== false,
+  );
+  const barber = settings.barbers.find(
+    (b) => b.id === input.barberId && b.active !== false,
+  );
+  if (!service) throw new Error("SERVICE_UNKNOWN");
+  if (!barber) throw new Error("BARBER_UNKNOWN");
+
   return withLock(async () => {
     const db = await readDb();
     const av = await availability(input.date, input.serviceId);
@@ -117,8 +145,7 @@ export async function createBooking(input: CreateBookingInput) {
       throw new Error("SLOT_TAKEN");
     }
     const year = input.date.slice(0, 4);
-    const seq =
-      db.bookings.filter((b) => b.date.startsWith(year)).length + 1;
+    const seq = db.bookings.filter((b) => b.date.startsWith(year)).length + 1;
     const code = `PK-${year}-${String(seq).padStart(4, "0")}`;
     const booking: Booking = {
       id: randomUUID(),
@@ -132,6 +159,9 @@ export async function createBooking(input: CreateBookingInput) {
       status: "pending",
       note: input.note?.trim() || undefined,
       createdAt: new Date().toISOString(),
+      serviceName: service.name,
+      servicePrice: service.price,
+      barberName: barber.name,
     };
     db.bookings.push(booking);
     await writeDb(db);
@@ -141,9 +171,9 @@ export async function createBooking(input: CreateBookingInput) {
 
 export async function listBookings(filter?: { date?: string; q?: string }) {
   const db = await readDb();
-  let rows = db.bookings.slice().sort((a, b) =>
-    (a.date + a.time).localeCompare(b.date + b.time),
-  );
+  let rows = db.bookings
+    .slice()
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   if (filter?.date) rows = rows.filter((b) => b.date === filter.date);
   if (filter?.q) {
     const q = filter.q.toLowerCase();
@@ -173,18 +203,37 @@ export async function setStatus(id: string, status: BookingStatus) {
 
 export function todayISO() {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: SHOP.timezone,
+    timeZone: "Asia/Jakarta",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
 }
 
-export function summary(rows: Booking[]) {
+export type DecoratedBooking = Booking & {
+  serviceDuration: number;
+};
+
+/** Lengkapi nama/harga: pakai salinan saat booking, kalau tidak ada pakai katalog. */
+export function decorate(rows: Booking[], settings: Settings): DecoratedBooking[] {
+  return rows.map((b) => {
+    const svc = settings.services.find((s) => s.id === b.serviceId);
+    const brb = settings.barbers.find((x) => x.id === b.barberId);
+    return {
+      ...b,
+      serviceName: b.serviceName ?? svc?.name ?? b.serviceId,
+      servicePrice: b.servicePrice ?? svc?.price ?? 0,
+      serviceDuration: svc?.duration ?? 30,
+      barberName: b.barberName ?? brb?.name ?? b.barberId,
+    };
+  });
+}
+
+export function summary(rows: DecoratedBooking[]) {
   const active = rows.filter((b) => b.status !== "cancelled");
   const revenue = rows
     .filter((b) => b.status === "done")
-    .reduce((sum, b) => sum + (serviceById(b.serviceId)?.price ?? 0), 0);
+    .reduce((sum, b) => sum + (b.servicePrice ?? 0), 0);
   return {
     total: active.length,
     pending: rows.filter((b) => b.status === "pending").length,
@@ -195,4 +244,4 @@ export function summary(rows: Booking[]) {
   };
 }
 
-export { SERVICES };
+export { activeServices };

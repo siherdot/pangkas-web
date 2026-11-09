@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { createBooking, listBookings } from "@/lib/store";
-import { serviceById, barberById } from "@/lib/catalog";
+import { createBooking, decorate, listBookings } from "@/lib/store";
+import { readSettings } from "@/lib/settings";
 
 export async function GET(request: Request) {
   if (!(await isAdmin())) {
@@ -12,15 +12,8 @@ export async function GET(request: Request) {
     date: url.searchParams.get("date") || undefined,
     q: url.searchParams.get("q") || undefined,
   });
-  return NextResponse.json(
-    rows.map((b) => ({
-      ...b,
-      serviceName: serviceById(b.serviceId)?.name ?? b.serviceId,
-      servicePrice: serviceById(b.serviceId)?.price ?? 0,
-      serviceDuration: serviceById(b.serviceId)?.duration ?? 30,
-      barberName: barberById(b.barberId)?.name ?? b.barberId,
-    })),
-  );
+  const settings = await readSettings();
+  return NextResponse.json(decorate(rows, settings));
 }
 
 export async function POST(request: Request) {
@@ -45,7 +38,11 @@ export async function POST(request: Request) {
   if (!/^(\+?62|0)8\d{7,12}$/.test(phone.replace(/[\s-]/g, ""))) {
     return NextResponse.json({ message: "Nomor WhatsApp tidak valid." }, { status: 422 });
   }
-  if (!serviceById(serviceId) || !barberById(barberId)) {
+  const settings = await readSettings();
+  if (
+    !settings.services.some((s) => s.id === serviceId && s.active !== false) ||
+    !settings.barbers.some((b) => b.id === barberId && b.active !== false)
+  ) {
     return NextResponse.json({ message: "Layanan atau barber tidak dikenal." }, { status: 422 });
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Barber, Service } from "@/lib/catalog";
-import { lastBookingFor, scheduleFor } from "@/lib/catalog";
+import type { Barber, DaySchedule, Service } from "@/lib/shared";
+import { lastBookingFor, scheduleFor } from "@/lib/shared";
 import { waConfirmation } from "@/lib/message";
 
 type Availability = Record<string, Record<string, boolean>>;
@@ -10,6 +10,7 @@ type Availability = Record<string, Record<string, boolean>>;
 type Props = {
   services: Service[];
   barbers: Barber[];
+  schedule: Record<string, DaySchedule>;
   whatsapp: string;
   shopName: string;
 };
@@ -32,6 +33,7 @@ function prettyDate(iso: string) {
 export default function BookingForm({
   services,
   barbers,
+  schedule,
   whatsapp,
   shopName,
 }: Props) {
@@ -287,7 +289,7 @@ export default function BookingForm({
             {loading
               ? "memuat slot…"
               : date
-                ? `buka ${scheduleFor(date).label} · slot terakhir ${lastBookingFor(date)}`
+                ? `buka ${scheduleFor(date, schedule).label} · slot terakhir ${lastBookingFor(date, schedule)}`
                 : "pilih tanggal dulu"}
           </span>
         </div>
