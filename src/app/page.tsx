@@ -70,7 +70,7 @@ export default async function Home() {
       {/* HERO */}
       <section className="relative overflow-hidden bg-ink text-cream">
         <div className="grain absolute inset-0 opacity-40" />
-        <div className="relative mx-auto grid max-w-6xl gap-10 px-5 py-16 md:grid-cols-[1.15fr_0.85fr] md:py-24">
+        <div className="relative mx-auto max-w-6xl px-5 py-16 md:py-24">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brass">
               {shop.tagline} — {shop.city}
@@ -112,35 +112,6 @@ export default async function Home() {
               <div>
                 <p className="display text-3xl text-brass">{barbers.length} Barber</p>
                 <p className="text-cream/50">Bisa pilih sendiri</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative flex items-end justify-center">
-            <div className="w-full max-w-sm rounded-[2rem] border border-cream/15 bg-gradient-to-b from-cream/10 to-transparent p-6">
-              <div className="flex items-center gap-1 text-brass">
-                {"★★★★★".split("").map((s, i) => (
-                  <span key={i}>{s}</span>
-                ))}
-                <span className="ml-2 text-sm text-cream/70">4,9 di Google</span>
-              </div>
-              <p className="mt-4 text-lg font-semibold leading-snug">
-                “Datang jam 7 malam, langsung dicukur. Nggak nunggu sama
-                sekali.”
-              </p>
-              <p className="mt-3 text-sm text-cream/50">— Rizky, pelanggan</p>
-              <div className="mt-6 grid grid-cols-3 gap-2">
-                {barbers.slice(0, 3).map((b) => (
-                  <div
-                    key={b.id}
-                    className="rounded-2xl border border-cream/10 bg-cream/5 p-3 text-center"
-                  >
-                    <span className="display mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-brass text-lg text-ink">
-                      {b.initials}
-                    </span>
-                    <p className="mt-2 text-xs font-semibold">{b.name}</p>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
