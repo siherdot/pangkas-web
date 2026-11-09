@@ -21,6 +21,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+# direktori data booking: harus milik nextjs, kalau tidak volume /app/data
+# ter-mount sebagai root dan simpan booking gagal (EACCES)
+RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./standalone
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./standalone/.next/static

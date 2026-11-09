@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import BookingForm from "@/components/booking-form";
 import { BARBERS, SERVICES, SHOP } from "@/lib/catalog";
@@ -17,9 +18,14 @@ export default function Home() {
       <header className="sticky top-0 z-40 border-b border-ink/10 bg-cream/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
           <Link href="/" className="flex items-center gap-3">
-            <span className="display flex h-10 w-10 items-center justify-center rounded-full bg-ink text-xl text-brass">
-              PK
-            </span>
+            <Image
+              src="/logo.png"
+              alt="Hair Style Studio"
+              width={76}
+              height={56}
+              className="h-11 w-auto object-contain"
+              priority
+            />
             <span className="leading-none">
               <span className="display block text-2xl">{SHOP.name}</span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-ink/50">

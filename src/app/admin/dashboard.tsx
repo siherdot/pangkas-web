@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -131,13 +132,19 @@ export default function Dashboard({ today }: { today: string }) {
       <header className="border-b border-ink/10 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4">
           <div className="flex items-center gap-3">
-            <span className="display flex h-10 w-10 items-center justify-center rounded-full bg-ink text-xl text-brass">
-              PK
+            <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white">
+              <Image
+                src="/logo.png"
+                alt="Hair Style Studio"
+                width={44}
+                height={32}
+                className="h-7 w-auto object-contain"
+              />
             </span>
             <div>
               <p className="display text-xl leading-none">Dashboard</p>
               <p className="text-[11px] uppercase tracking-[0.2em] text-ink/40">
-                Pangkas Barbershop
+                Pangkas Hair Style Studio
               </p>
             </div>
           </div>
