@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Barber, Service } from "@/lib/catalog";
 import { lastBookingFor, scheduleFor } from "@/lib/catalog";
+import { waConfirmation } from "@/lib/message";
 
 type Availability = Record<string, Record<string, boolean>>;
 
@@ -24,6 +25,7 @@ function prettyDate(iso: string) {
     weekday: "long",
     day: "numeric",
     month: "long",
+    year: "numeric",
   });
 }
 
@@ -122,7 +124,17 @@ export default function BookingForm({
 
   const waLink = done
     ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(
-        `Halo ${shopName}, saya mau konfirmasi booking ${done.code} atas nama ${name} — ${service?.name ?? ""}, ${prettyDate(date)} jam ${time}.`,
+        waConfirmation({
+          shopName,
+          code: done.code,
+          name,
+          serviceName: service?.name ?? "—",
+          barberName,
+          dateLabel: prettyDate(date),
+          time,
+          priceLabel: rupiah(service?.price ?? 0),
+          note,
+        }),
       )}`
     : "#booking";
 
@@ -164,6 +176,12 @@ export default function BookingForm({
             <dt className="text-ink/50">Bayar di tempat</dt>
             <dd className="font-semibold">{rupiah(service?.price ?? 0)}</dd>
           </div>
+          {note.trim() && (
+            <div className="sm:col-span-2">
+              <dt className="text-ink/50">Catatan</dt>
+              <dd className="font-semibold">{note.trim()}</dd>
+            </div>
+          )}
         </dl>
         <div className="mt-6 flex flex-wrap gap-3">
           <a
