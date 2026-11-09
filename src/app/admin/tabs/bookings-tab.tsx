@@ -94,6 +94,16 @@ export default function BookingsTab({ today }: { today: string }) {
     };
   }, [rows]);
 
+  const phoneCount = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of rows) {
+      if (r.status === "cancelled") continue;
+      const key = r.phone.replace(/\D/g, "");
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  }, [rows]);
+
   const ipCount = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of rows) {
@@ -258,6 +268,11 @@ export default function BookingsTab({ today }: { today: string }) {
                       >
                         {r.phone}
                       </a>
+                      {(phoneCount.get(r.phone.replace(/\D/g, "")) ?? 0) > 1 && (
+                        <span className="mt-1 inline-block rounded bg-amber-100 px-1 text-[11px] text-amber-800">
+                          ×{phoneCount.get(r.phone.replace(/\D/g, ""))} nomor sama
+                        </span>
+                      )}
                       {r.note && (
                         <span className="mt-1 block text-xs text-ink/45">
                           “{r.note}”

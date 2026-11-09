@@ -93,6 +93,17 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
+    if (err instanceof Error && err.message.startsWith("DUPLICATE|")) {
+      const code = err.message.split("|")[1];
+      return NextResponse.json(
+        {
+          error: "DUPLICATE",
+          message: `Nomor WhatsApp ini sudah punya booking aktif di tanggal itu (kode ${code}). Satu nomor hanya boleh satu booking per tanggal — batalkan yang lama dulu kalau mau ganti.`,
+          existingCode: code,
+        },
+        { status: 409 },
+      );
+    }
     if (err instanceof Error && err.message === "SERVICE_UNKNOWN") {
       return NextResponse.json({ message: "Layanan tidak tersedia." }, { status: 422 });
     }

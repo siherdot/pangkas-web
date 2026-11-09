@@ -60,6 +60,15 @@ function withLock<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/** Nomor WA disamakan ke format 62… supaya 0812 / +62812 / 62812 dianggap sama. */
+export function normalizePhone(raw: string) {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("62")) return digits;
+  if (digits.startsWith("0")) return "62" + digits.slice(1);
+  if (digits.startsWith("8")) return "62" + digits;
+  return digits;
+}
+
 /** Booking yang masih menempati antrian: baru atau terkonfirmasi. */
 export function isActive(status: BookingStatus) {
   return status === "pending" || status === "confirmed";
@@ -170,6 +179,15 @@ export async function createBooking(input: CreateBookingInput) {
 
   return withLock(async () => {
     const db = await readDb();
+    // satu nomor WhatsApp hanya boleh punya satu booking aktif per tanggal
+    const phone = normalizePhone(input.phone);
+    const duplicate = db.bookings.find(
+      (b) =>
+        b.date === input.date &&
+        isActive(b.status) &&
+        normalizePhone(b.phone) === phone,
+    );
+    if (duplicate) throw new Error(`DUPLICATE|${duplicate.code}`);
     // hitung ulang di dalam lock supaya dua orang tidak dapat nomor antrian sama
     const sameDay = db.bookings.filter(
       (b) =>
