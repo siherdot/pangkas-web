@@ -14,6 +14,7 @@ export type Row = {
   date: string;
   time: string;
   status: "pending" | "confirmed" | "done" | "cancelled";
+  autoCancelled?: boolean;
   pax?: number;
   note?: string;
   ip?: string;

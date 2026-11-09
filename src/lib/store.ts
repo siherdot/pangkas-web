@@ -20,6 +20,8 @@ export type Booking = {
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
   status: BookingStatus;
+  /** dibatalkan otomatis karena lewat jam booking */
+  autoCancelled?: boolean;
   /** jumlah orang yang dicukur dalam satu booking (default 1) */
   pax?: number;
   note?: string;
@@ -87,6 +89,10 @@ export function timeOf(minutes: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+/** Toleransi setelah jam booking sebelum otomatis dibatalkan (menit). */
+export const AUTO_CANCEL_GRACE_MIN =
+  Number(process.env.AUTO_CANCEL_GRACE_MINUTES ?? 15);
+
 /** Durasi cadangan kalau layanan tidak ditemukan (menit). */
 export const ESTIMATE_MIN = Number(process.env.BOOKING_ESTIMATE_MINUTES || 30);
 
@@ -110,6 +116,36 @@ function nowMinutesJakarta() {
   }).format(new Date());
   const [h, m] = parts.split(":").map(Number);
   return h * 60 + m;
+}
+
+/**
+ * Batalkan booking yang jamnya sudah lewat (pending/confirmed saja).
+ * Dipanggil di setiap pembacaan data, jadi tidak butuh cron terpisah.
+ */
+function markExpired(db: Db): number {
+  const today = todayISO();
+  const now = nowMinutesJakarta();
+  let changed = 0;
+  for (const b of db.bookings) {
+    if (!isActive(b.status)) continue;
+    const lewat =
+      b.date < today ||
+      (b.date === today && minutesOf(b.time) + AUTO_CANCEL_GRACE_MIN < now);
+    if (!lewat) continue;
+    b.status = "cancelled";
+    b.autoCancelled = true;
+    changed++;
+  }
+  return changed;
+}
+
+export async function sweepExpired(): Promise<number> {
+  return withLock(async () => {
+    const db = await readDb();
+    const changed = markExpired(db);
+    if (changed) await writeDb(db);
+    return changed;
+  });
 }
 
 export type QueueSnapshot = {
@@ -138,6 +174,7 @@ export async function queueSnapshot(
   date: string,
   barberId: string,
 ): Promise<QueueSnapshot> {
+  await sweepExpired();
   const settings = await readSettings();
   const { open, close } = scheduleFor(date, settings.shop.schedule);
   const today = todayISO();
@@ -194,6 +231,8 @@ export async function createBooking(input: CreateBookingInput) {
 
   return withLock(async () => {
     const db = await readDb();
+    const expired = markExpired(db);
+    if (expired) await writeDb(db);
     // satu nomor WhatsApp hanya boleh punya satu booking aktif per tanggal
     const phone = normalizePhone(input.phone);
     const duplicate = db.bookings.find(
@@ -258,6 +297,7 @@ export async function createBooking(input: CreateBookingInput) {
 }
 
 export async function listBookings(filter?: { date?: string; q?: string }) {
+  await sweepExpired();
   const db = await readDb();
   let rows = db.bookings
     .slice()
