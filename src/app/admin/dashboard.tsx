@@ -9,22 +9,26 @@ import BookingsTab from "./tabs/bookings-tab";
 import ServicesTab from "./tabs/services-tab";
 import BarbersTab from "./tabs/barbers-tab";
 import ShopTab from "./tabs/shop-tab";
+import UsersTab from "./tabs/users-tab";
 
-type Tab = "booking" | "layanan" | "barber" | "situs";
+type Tab = "booking" | "layanan" | "barber" | "situs" | "akun";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "booking", label: "Booking" },
   { id: "layanan", label: "Layanan & Harga" },
   { id: "barber", label: "Barber" },
   { id: "situs", label: "Info Website" },
+  { id: "akun", label: "Akun" },
 ];
 
 export default function Dashboard({
   today,
   initialSettings,
+  me,
 }: {
   today: string;
   initialSettings: Settings;
+  me: string;
 }) {
   const [tab, setTab] = useState<Tab>("booking");
   const [draft, setDraft] = useState<Settings>(initialSettings);
@@ -111,7 +115,7 @@ export default function Dashboard({
             <div>
               <p className="display text-xl leading-none">Dashboard</p>
               <p className="text-[11px] uppercase tracking-[0.2em] text-ink/40">
-                {shopLabel}
+                {shopLabel} · {me}
               </p>
             </div>
           </div>
@@ -187,6 +191,7 @@ export default function Dashboard({
             onChange={(barbers) => setDraft({ ...draft, barbers })}
           />
         )}
+        {tab === "akun" && <UsersTab />}
         {tab === "situs" && (
           <ShopTab
             shop={draft.shop}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { isAdmin } from "@/lib/auth";
+import { currentAdmin } from "@/lib/auth";
 import { todayISO } from "@/lib/store";
 import { readSettings } from "@/lib/settings";
 import Dashboard from "./dashboard";
@@ -16,7 +16,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AdminPage() {
-  if (!(await isAdmin())) redirect("/admin/login");
+  const me = await currentAdmin();
+  if (!me) redirect("/admin/login");
   const settings = await readSettings();
-  return <Dashboard today={todayISO()} initialSettings={settings} />;
+  return <Dashboard today={todayISO()} initialSettings={settings} me={me} />;
 }
