@@ -225,50 +225,31 @@ export async function setStatus(id: string, status: BookingStatus) {
 }
 
 export type QueueInfo = {
-  ahead: number;
+  total: number;
   position: number;
-  startEstimate: string;
-  sameBarber: number;
 };
 
-/** Posisi antrian satu booking: berapa orang sebelumnya & perkiraan jam mulai. */
+/** Total antrian satu barber pada tanggal itu, plus urutan booking ini. */
 export async function queueInfo(bookingId: string): Promise<QueueInfo | null> {
   const db = await readDb();
   const target = db.bookings.find((b) => b.id === bookingId);
   if (!target) return null;
-  const settings = await readSettings();
-  const now = nowMinutesJakarta();
-  const today = todayISO();
 
-  const sameBarber = db.bookings.filter(
+  const rows = db.bookings.filter(
     (b) =>
       b.date === target.date &&
       b.barberId === target.barberId &&
       b.status !== "cancelled",
   );
-  const aheadRows = sameBarber.filter((b) => {
-    if (b.id === target.id) return false;
-    if (b.status === "done") return false;
-    if (b.time >= target.time) return false;
-    if (target.date === today && minutesOf(b.time) < now - 60) return false;
-    return true;
-  });
+  const position =
+    rows.filter(
+      (b) =>
+        b.id !== target.id &&
+        (b.time < target.time ||
+          (b.time === target.time && b.createdAt < target.createdAt)),
+    ).length + 1;
 
-  const durOf = (serviceId: string) =>
-    settings.services.find((s) => s.id === serviceId)?.duration ?? 30;
-  const aheadMinutes = aheadRows.reduce((sum, b) => sum + durOf(b.serviceId), 0);
-  const base =
-    target.date === today
-      ? Math.max(minutesOf(target.time), now)
-      : minutesOf(target.time);
-  const startEstimate = timeOf(base + aheadMinutes);
-
-  return {
-    ahead: aheadRows.length,
-    position: aheadRows.length + 1,
-    startEstimate,
-    sameBarber: sameBarber.length,
-  };
+  return { total: rows.length, position };
 }
 
 export function todayISO() {

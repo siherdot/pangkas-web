@@ -8,10 +8,8 @@ import { waConfirmation } from "@/lib/message";
 type Availability = Record<string, Record<string, boolean>>;
 
 type QueueInfo = {
-  ahead: number;
+  total: number;
   position: number;
-  startEstimate: string;
-  sameBarber: number;
 };
 
 type Props = {
@@ -202,27 +200,18 @@ export default function BookingForm({
         {done.queue && (
           <div className="mt-4 rounded-2xl border border-brass/40 bg-brass/10 p-5">
             <p className="text-xs font-bold uppercase tracking-wider text-ink/50">
-              Sisa antrian · {barberName}
+              Antrian {barberName} hari itu
             </p>
             <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-2">
-              <p className="display text-4xl">
-                {done.queue.ahead === 0
-                  ? "Antrian pertama"
-                  : `${done.queue.ahead} orang`}
-              </p>
+              <p className="display text-4xl">{done.queue.total} booking</p>
               <p className="text-sm text-ink/60">
-                {done.queue.ahead === 0
-                  ? "Tidak ada yang mendahului jam kamu."
-                  : `sebelum jam ${time} · posisi ke-${done.queue.position} dari ${done.queue.sameBarber} booking ${barberName} hari itu`}
+                Kamu urutan ke-{done.queue.position} dari {done.queue.total} di{" "}
+                {barberName}.
               </p>
             </div>
             <p className="mt-2 text-sm text-ink/60">
-              Perkiraan mulai dilayani{" "}
-              <span className="font-semibold text-ink">
-                ± {done.queue.startEstimate} WIB
-              </span>
-              {done.queue.ahead > 0 &&
-                " — datang 5 menit sebelum jam itu, bukan sebelum jam booking."}
+              Datang 5 menit sebelum jam {time} WIB — kursi disiapkan sesuai
+              urutan jam.
             </p>
           </div>
         )}
