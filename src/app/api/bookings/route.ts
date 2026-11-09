@@ -30,6 +30,7 @@ export async function POST(request: Request) {
   const serviceId = String(body.serviceId ?? "");
   const barberId = String(body.barberId ?? "");
   const date = String(body.date ?? "");
+  const pax = Math.min(5, Math.max(1, Math.round(Number(body.pax) || 1)));
   const note = body.note ? String(body.note) : undefined;
 
   if (name.length < 2) {
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
       serviceId,
       barberId,
       date,
+      pax,
       note,
       ip,
     });

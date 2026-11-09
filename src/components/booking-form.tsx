@@ -58,6 +58,7 @@ export default function BookingForm({
   const [barberId, setBarberId] = useState(barbers[0]?.id ?? "");
   const [date, setDate] = useState("");
   const [today, setToday] = useState("");
+  const [pax, setPax] = useState(1);
   const [note, setNote] = useState("");
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -111,7 +112,7 @@ export default function BookingForm({
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, serviceId, barberId, date, note }),
+        body: JSON.stringify({ name, phone, serviceId, barberId, date, pax, note }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -137,7 +138,8 @@ export default function BookingForm({
           barberName,
           dateLabel: prettyDate(date),
           time: done.time,
-          priceLabel: rupiah(service?.price ?? 0),
+          priceLabel: rupiah((service?.price ?? 0) * pax),
+          pax,
           note,
         }),
       )}`
@@ -161,7 +163,10 @@ export default function BookingForm({
           </div>
           <div>
             <dt className="text-ink/50">Layanan</dt>
-            <dd className="font-semibold">{service?.name}</dd>
+            <dd className="font-semibold">
+              {service?.name}
+              {pax > 1 ? ` · ${pax} orang` : ""}
+            </dd>
           </div>
           <div>
             <dt className="text-ink/50">Barber</dt>
@@ -177,7 +182,10 @@ export default function BookingForm({
           </div>
           <div>
             <dt className="text-ink/50">Bayar di tempat</dt>
-            <dd className="font-semibold">{rupiah(service?.price ?? 0)}</dd>
+            <dd className="font-semibold">
+              {rupiah((service?.price ?? 0) * pax)}
+              {pax > 1 ? ` (${pax} × ${rupiah(service?.price ?? 0)})` : ""}
+            </dd>
           </div>
           {note.trim() && (
             <div className="sm:col-span-2">
@@ -193,10 +201,10 @@ export default function BookingForm({
               Antrian {barberName} hari itu
             </p>
             <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-2">
-              <p className="display text-4xl">{done.queue.total} booking</p>
+              <p className="display text-4xl">{done.queue.total} orang</p>
               <p className="text-sm text-ink/60">
-                Kamu urutan ke-{done.queue.position} dari {done.queue.total} di{" "}
-                {barberName}.
+                Kamu urutan ke-{done.queue.position} dari {done.queue.total} orang
+                di {barberName}.
               </p>
             </div>
             <p className="mt-2 text-sm text-ink/60">
@@ -301,6 +309,20 @@ export default function BookingForm({
             ))}
           </select>
         </label>
+        <label className="block text-sm">
+          <span className="font-medium text-ink/70">Jumlah orang</span>
+          <select
+            value={pax}
+            onChange={(e) => setPax(Number(e.target.value))}
+            className="mt-2 w-full rounded-xl border border-ink/15 bg-cream/60 px-4 py-3 outline-none focus:border-brass"
+          >
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>
+                {n} orang
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="block text-sm sm:col-span-2">
           <span className="font-medium text-ink/70">Tanggal kedatangan</span>
           <input
@@ -329,7 +351,7 @@ export default function BookingForm({
         </div>
         {snap && (
           <div className="mt-2 flex flex-wrap items-end gap-x-5 gap-y-1">
-            <p className="display text-3xl">{snap.total} booking</p>
+            <p className="display text-3xl">{snap.total} orang</p>
             <p className="text-sm text-ink/60">
               Kalau kamu booking sekarang:{" "}
               <span className="font-semibold text-ink">
@@ -370,8 +392,13 @@ export default function BookingForm({
         <p className="text-sm text-ink/60">
           Total bayar di tempat{" "}
           <span className="font-bold text-ink">
-            {rupiah(service?.price ?? 0)}
+            {rupiah((service?.price ?? 0) * pax)}
           </span>
+          {pax > 1 && (
+            <span className="block text-xs text-ink/45">
+              {pax} orang × {rupiah(service?.price ?? 0)}
+            </span>
+          )}
         </p>
         <button
           type="submit"

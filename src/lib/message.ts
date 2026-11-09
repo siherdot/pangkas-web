@@ -12,6 +12,7 @@ export type WaConfirmInput = {
   dateLabel: string;
   time: string;
   priceLabel: string;
+  pax?: number;
   note?: string;
 };
 
@@ -22,6 +23,7 @@ export function waConfirmation(i: WaConfirmInput) {
     `*Kode:* ${i.code}`,
     `*Nama:* ${i.name}`,
     `*Layanan:* ${i.serviceName}`,
+    ...(i.pax && i.pax > 1 ? [`*Jumlah:* ${i.pax} orang`] : []),
     `*Barber:* ${i.barberName}`,
     `*Perkiraan jam:* ${i.dateLabel}, ± ${i.time} WIB`,
   ];

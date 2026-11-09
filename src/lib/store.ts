@@ -20,6 +20,8 @@ export type Booking = {
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
   status: BookingStatus;
+  /** jumlah orang yang dicukur dalam satu booking (default 1) */
+  pax?: number;
   note?: string;
   ip?: string;
   createdAt: string;
@@ -135,15 +137,16 @@ export async function queueSnapshot(
     (b) =>
       b.date === date && b.barberId === barberId && isActive(b.status),
   );
+  const people = rows.reduce((sum, b) => sum + (b.pax ?? 1), 0);
   const past = date < today;
   const closed = date === today && now >= close * 60;
   const base = date === today ? Math.max(open * 60, now) : open * 60;
   return {
     date,
     barberId,
-    total: rows.length,
-    nextPosition: rows.length + 1,
-    nextEstimate: timeOf(base + rows.length * ESTIMATE_MIN),
+    total: people,
+    nextPosition: people + 1,
+    nextEstimate: timeOf(base + people * ESTIMATE_MIN),
     open: timeOf(open * 60),
     close: timeOf(close * 60),
     past,
@@ -157,6 +160,7 @@ export type CreateBookingInput = {
   serviceId: string;
   barberId: string;
   date: string;
+  pax?: number;
   note?: string;
   ip?: string;
 };
@@ -198,7 +202,9 @@ export async function createBooking(input: CreateBookingInput) {
     const { open, close } = scheduleFor(input.date, settings.shop.schedule);
     const base =
       input.date === today ? Math.max(open * 60, nowMinutesJakarta()) : open * 60;
-    const estimateMinutes = base + sameDay.length * ESTIMATE_MIN;
+    const pax = Math.min(5, Math.max(1, Math.round(Number(input.pax) || 1)));
+    const peopleAhead = sameDay.reduce((sum, b) => sum + (b.pax ?? 1), 0);
+    const estimateMinutes = base + peopleAhead * ESTIMATE_MIN;
     const estimated = timeOf(estimateMinutes);
     const year = input.date.slice(0, 4);
     const seq = db.bookings.filter((b) => b.date.startsWith(year)).length + 1;
@@ -213,6 +219,7 @@ export async function createBooking(input: CreateBookingInput) {
       date: input.date,
       time: estimated,
       status: "pending",
+      pax,
       note: input.note?.trim() || undefined,
       ip: input.ip,
       createdAt: new Date().toISOString(),
@@ -225,8 +232,8 @@ export async function createBooking(input: CreateBookingInput) {
     return {
       booking,
       queue: {
-        total: sameDay.length + 1,
-        position: sameDay.length + 1,
+        total: peopleAhead + pax,
+        position: peopleAhead + 1,
         estimate: estimated,
         pastClose: estimateMinutes >= close * 60,
       },

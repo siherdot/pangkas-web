@@ -14,6 +14,7 @@ export type Row = {
   date: string;
   time: string;
   status: "pending" | "confirmed" | "done" | "cancelled";
+  pax?: number;
   note?: string;
   ip?: string;
   createdAt: string;
@@ -84,7 +85,7 @@ export default function BookingsTab({ today }: { today: string }) {
   const stats = useMemo(() => {
     const revenue = rows
       .filter((r) => r.status === "done")
-      .reduce((s, r) => s + r.servicePrice, 0);
+      .reduce((s, r) => s + r.servicePrice * (r.pax ?? 1), 0);
     return {
       total: rows.filter((r) => r.status === "pending" || r.status === "confirmed").length,
       pending: rows.filter((r) => r.status === "pending").length,
@@ -282,7 +283,11 @@ export default function BookingsTab({ today }: { today: string }) {
                     <td className="px-4 py-3">
                       {r.serviceName}
                       <span className="block text-xs text-ink/45">
-                        {rupiah(r.servicePrice)} · {r.serviceDuration} mnt
+                        {rupiah(r.servicePrice)}
+                        {(r.pax ?? 1) > 1
+                          ? ` × ${r.pax} orang = ${rupiah(r.servicePrice * (r.pax ?? 1))}`
+                          : ""}{" "}
+                        · {r.serviceDuration} mnt/org
                       </span>
                     </td>
                     <td className="px-4 py-3">{r.barberName}</td>
