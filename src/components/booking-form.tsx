@@ -110,6 +110,10 @@ export default function BookingForm({
           setError("Slot itu baru saja diambil orang lain. Pilih jam lain.");
           setTime("");
           void loadSlots();
+        } else if (data?.error === "SLOT_PAST") {
+          setError("Jam itu sudah lewat. Pilih jam lain atau tanggal berikutnya.");
+          setTime("");
+          void loadSlots();
         } else {
           setError(data?.message || "Gagal membuat booking. Coba lagi.");
         }
@@ -289,7 +293,9 @@ export default function BookingForm({
             {loading
               ? "memuat slot…"
               : date
-                ? `buka ${scheduleFor(date, schedule).label} · slot terakhir ${lastBookingFor(date, schedule)}`
+                ? `buka ${scheduleFor(date, schedule).label} · slot terakhir ${lastBookingFor(date, schedule)}${
+                    date === today ? " · jam yang sudah lewat tidak bisa dipilih" : ""
+                  }`
                 : "pilih tanggal dulu"}
           </span>
         </div>

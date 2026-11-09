@@ -83,12 +83,27 @@ function overlaps(aStart: number, aDur: number, bStart: number, bDur: number) {
   return aStart < bStart + bDur && bStart < aStart + aDur;
 }
 
+/** Menit sejak tengah malam, waktu Jakarta. */
+function nowMinutesJakarta() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date());
+  const [h, m] = parts.split(":").map(Number);
+  return h * 60 + m;
+}
+
 export async function availability(date: string, serviceId: string) {
   const settings = await readSettings();
   const service = settings.services.find((s) => s.id === serviceId);
   const dur = service?.duration ?? 30;
   const { close } = scheduleFor(date, settings.shop.schedule);
   const db = await readDb();
+  const today = todayISO();
+  const now = nowMinutesJakarta();
+  const pastDate = date < today;
   const active = db.bookings.filter(
     (b) => b.date === date && b.status !== "cancelled",
   );
@@ -97,7 +112,8 @@ export async function availability(date: string, serviceId: string) {
     result[barber.id] = {};
     for (const slot of slotStarts(date, settings)) {
       const start = minutesOf(slot);
-      if (start + dur > close * 60) {
+      // tanggal sudah lewat, jam sudah lewat hari ini, atau lewat jam tutup
+      if (pastDate || start + dur > close * 60 || (date === today && start <= now)) {
         result[barber.id][slot] = false;
         continue;
       }
@@ -128,6 +144,13 @@ export type CreateBookingInput = {
 };
 
 export async function createBooking(input: CreateBookingInput) {
+  const today = todayISO();
+  if (
+    input.date < today ||
+    (input.date === today && minutesOf(input.time) <= nowMinutesJakarta())
+  ) {
+    throw new Error("SLOT_PAST");
+  }
   const settings = await readSettings();
   const service = settings.services.find(
     (s) => s.id === input.serviceId && s.active !== false,

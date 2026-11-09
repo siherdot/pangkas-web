@@ -59,6 +59,12 @@ export async function POST(request: Request) {
     if (err instanceof Error && err.message === "SLOT_TAKEN") {
       return NextResponse.json({ error: "SLOT_TAKEN" }, { status: 409 });
     }
+    if (err instanceof Error && err.message === "SLOT_PAST") {
+      return NextResponse.json(
+        { error: "SLOT_PAST", message: "Jam itu sudah lewat. Pilih jam lain atau tanggal berikutnya." },
+        { status: 409 },
+      );
+    }
     console.error("[booking] create failed", err);
     return NextResponse.json({ message: "Gagal menyimpan booking." }, { status: 500 });
   }
