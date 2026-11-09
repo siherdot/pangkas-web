@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
 import { createBooking, decorate, listBookings, queueInfo } from "@/lib/store";
 import { readSettings } from "@/lib/settings";
+import { clientIp, releaseBookingSlot, reserveBookingSlot } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
   if (!(await isAdmin())) {
@@ -49,14 +50,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Tanggal atau jam tidak valid." }, { status: 422 });
   }
 
+  const ip = clientIp(request.headers);
+  const quota = await reserveBookingSlot(ip);
+  if (!quota.allowed) {
+    return NextResponse.json(
+      {
+        error: "RATE_LIMITED",
+        message: `Terlalu banyak booking dari jaringan ini (${quota.limitHour}/jam, ${quota.limitDay}/hari). Coba lagi dalam ${quota.retryMinutes} menit.`,
+        retryMinutes: quota.retryMinutes,
+      },
+      { status: 429, headers: { "Retry-After": String(quota.retryMinutes * 60) } },
+    );
+  }
+
   try {
-    const booking = await createBooking({ name, phone, serviceId, barberId, date, time, note });
+    const booking = await createBooking({
+      name,
+      phone,
+      serviceId,
+      barberId,
+      date,
+      time,
+      note,
+      ip,
+    });
     const queue = await queueInfo(booking.id);
     return NextResponse.json(
       { ok: true, code: booking.code, id: booking.id, queue },
       { status: 201 },
     );
   } catch (err) {
+    await releaseBookingSlot(ip);
     if (err instanceof Error && err.message === "SLOT_TAKEN") {
       return NextResponse.json({ error: "SLOT_TAKEN" }, { status: 409 });
     }

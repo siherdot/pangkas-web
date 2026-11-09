@@ -15,6 +15,7 @@ export type Row = {
   time: string;
   status: "pending" | "confirmed" | "done" | "cancelled";
   note?: string;
+  ip?: string;
   createdAt: string;
   serviceName: string;
   servicePrice: number;
@@ -91,6 +92,15 @@ export default function BookingsTab({ today }: { today: string }) {
       done: rows.filter((r) => r.status === "done").length,
       revenue,
     };
+  }, [rows]);
+
+  const ipCount = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of rows) {
+      if (!r.ip) continue;
+      map.set(r.ip, (map.get(r.ip) ?? 0) + 1);
+    }
+    return map;
   }, [rows]);
 
   const byBarber = useMemo(() => {

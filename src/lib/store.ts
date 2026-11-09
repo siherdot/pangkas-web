@@ -21,6 +21,7 @@ export type Booking = {
   time: string; // HH:MM
   status: BookingStatus;
   note?: string;
+  ip?: string;
   createdAt: string;
   /** salinan nama/harga saat booking dibuat, supaya riwayat tidak berubah */
   serviceName?: string;
@@ -146,6 +147,7 @@ export type CreateBookingInput = {
   date: string;
   time: string;
   note?: string;
+  ip?: string;
 };
 
 export async function createBooking(input: CreateBookingInput) {
@@ -186,6 +188,7 @@ export async function createBooking(input: CreateBookingInput) {
       time: input.time,
       status: "pending",
       note: input.note?.trim() || undefined,
+      ip: input.ip,
       createdAt: new Date().toISOString(),
       serviceName: service.name,
       servicePrice: service.price,
