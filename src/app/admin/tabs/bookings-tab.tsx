@@ -135,6 +135,38 @@ export default function BookingsTab({ today }: { today: string }) {
     }
   }
 
+  const actions = (r: Row) => (
+    <div className="flex flex-wrap gap-1.5">
+      {r.status === "pending" && (
+        <button
+          onClick={() => void update(r.id, "confirmed")}
+          className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 sm:py-1.5"
+        >
+          Konfirmasi
+        </button>
+      )}
+      {(r.status === "pending" || r.status === "confirmed") && (
+        <>
+          <button
+            onClick={() => void update(r.id, "done")}
+            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 sm:py-1.5"
+          >
+            Selesai
+          </button>
+          <button
+            onClick={() => void update(r.id, "cancelled")}
+            className="rounded-lg border border-ink/15 px-3 py-2 text-xs font-semibold text-ink/60 hover:border-red-300 hover:text-red-600 sm:py-1.5"
+          >
+            Batal
+          </button>
+        </>
+      )}
+      {(r.status === "done" || r.status === "cancelled") && (
+        <span className="text-xs text-ink/30">—</span>
+      )}
+    </div>
+  );
+
   const nextUp = rows
     .filter((r) => r.status === "confirmed" || r.status === "pending")
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0];
@@ -211,7 +243,99 @@ export default function BookingsTab({ today }: { today: string }) {
         </div>
       )}
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-ink/10 bg-white">
+      {/* MOBILE: kartu per booking */}
+      <div className="mt-6 space-y-3 md:hidden">
+        {loading && (
+          <p className="rounded-2xl border border-ink/10 bg-white px-4 py-8 text-center text-sm text-ink/40">
+            Memuat…
+          </p>
+        )}
+        {!loading && error && (
+          <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-600">
+            {error}
+          </p>
+        )}
+        {!loading && !error && rows.length === 0 && (
+          <p className="rounded-2xl border border-ink/10 bg-white px-4 py-8 text-center text-sm text-ink/40">
+            Belum ada booking untuk filter ini.
+          </p>
+        )}
+        {!loading &&
+          !error &&
+          rows.map((r) => (
+            <div
+              key={r.id}
+              className="rounded-2xl border border-ink/10 bg-white p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="display text-2xl leading-none">{r.time}</p>
+                  <p className="mt-1 text-xs text-ink/45">
+                    {prettyDate(r.date)} · {r.code}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span
+                    className={`inline-block rounded-full border px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[r.status]}`}
+                  >
+                    {STATUS_LABEL[r.status]}
+                  </span>
+                  {r.autoCancelled && (
+                    <span className="mt-1 block text-[11px] text-ink/40">
+                      otomatis lewat jam
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 text-sm">
+                <p className="font-semibold">{r.name}</p>
+                <a
+                  href={`https://wa.me/${r.phone.replace(/\D/g, "").replace(/^0/, "62")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-moss underline-offset-2 hover:underline"
+                >
+                  {r.phone}
+                </a>
+                {(phoneCount.get(r.phone.replace(/\D/g, "")) ?? 0) > 1 && (
+                  <span className="ml-2 rounded bg-amber-100 px-1 text-[11px] text-amber-800">
+                    ×{phoneCount.get(r.phone.replace(/\D/g, ""))} nomor sama
+                  </span>
+                )}
+                {r.note && (
+                  <p className="mt-1 text-xs text-ink/45">“{r.note}”</p>
+                )}
+              </div>
+
+              <div className="mt-2 space-y-0.5 text-xs text-ink/55">
+                <p>
+                  {r.serviceName} ·{" "}
+                  {(r.pax ?? 1) > 1
+                    ? `${r.pax} orang × ${rupiah(r.servicePrice)} = ${rupiah(
+                        r.servicePrice * (r.pax ?? 1),
+                      )}`
+                    : rupiah(r.servicePrice)}
+                </p>
+                <p>Barber {r.barberName}</p>
+                {r.ip && (
+                  <p className="font-mono text-[11px] text-ink/35">
+                    IP {r.ip}
+                    {(ipCount.get(r.ip) ?? 0) > 1 && (
+                      <span className="ml-1 rounded bg-amber-100 px-1 font-sans text-amber-800">
+                        ×{ipCount.get(r.ip)} IP sama
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-3 border-t border-ink/5 pt-3">{actions(r)}</div>
+            </div>
+          ))}
+      </div>
+
+      <div className="mt-6 hidden overflow-hidden rounded-2xl border border-ink/10 bg-white md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-cream text-xs uppercase tracking-wider text-ink/45">
@@ -300,35 +424,7 @@ export default function BookingsTab({ today }: { today: string }) {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        {r.status === "pending" && (
-                          <button
-                            onClick={() => void update(r.id, "confirmed")}
-                            className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-                          >
-                            Konfirmasi
-                          </button>
-                        )}
-                        {(r.status === "pending" || r.status === "confirmed") && (
-                          <>
-                            <button
-                              onClick={() => void update(r.id, "done")}
-                              className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-                            >
-                              Selesai
-                            </button>
-                            <button
-                              onClick={() => void update(r.id, "cancelled")}
-                              className="rounded-lg border border-ink/15 px-2.5 py-1.5 text-xs font-semibold text-ink/60 hover:border-red-300 hover:text-red-600"
-                            >
-                              Batal
-                            </button>
-                          </>
-                        )}
-                        {(r.status === "done" || r.status === "cancelled") && (
-                          <span className="text-xs text-ink/30">—</span>
-                        )}
-                      </div>
+                      <div className="flex justify-end">{actions(r)}</div>
                     </td>
                   </tr>
                 ))}
