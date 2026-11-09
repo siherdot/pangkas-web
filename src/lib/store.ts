@@ -5,6 +5,7 @@ import {
   BARBERS,
   SERVICES,
   SHOP,
+  scheduleFor,
   serviceById,
   type Booking,
   type BookingStatus,
@@ -53,11 +54,11 @@ export function timeOf(minutes: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Semua slot mulai yang mungkin untuk satu tanggal. */
-export function slotStarts() {
+/** Semua slot mulai yang mungkin untuk satu tanggal (mengikuti jadwal hari itu). */
+export function slotStarts(date: string) {
+  const { open, close } = scheduleFor(date);
   const out: string[] = [];
-  const end = SHOP.closeHour * 60;
-  for (let m = SHOP.openHour * 60; m < end; m += SHOP.slotStep) out.push(timeOf(m));
+  for (let m = open * 60; m < close * 60; m += SHOP.slotStep) out.push(timeOf(m));
   return out;
 }
 
@@ -68,6 +69,7 @@ function overlaps(aStart: number, aDur: number, bStart: number, bDur: number) {
 export async function availability(date: string, serviceId: string) {
   const service = serviceById(serviceId);
   const dur = service?.duration ?? 30;
+  const { close } = scheduleFor(date);
   const db = await readDb();
   const active = db.bookings.filter(
     (b) => b.date === date && b.status !== "cancelled",
@@ -75,9 +77,9 @@ export async function availability(date: string, serviceId: string) {
   const result: Record<string, Record<string, boolean>> = {};
   for (const barber of BARBERS) {
     result[barber.id] = {};
-    for (const slot of slotStarts()) {
+    for (const slot of slotStarts(date)) {
       const start = minutesOf(slot);
-      if (start + dur > SHOP.closeHour * 60) {
+      if (start + dur > close * 60) {
         result[barber.id][slot] = false;
         continue;
       }

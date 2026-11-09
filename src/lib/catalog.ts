@@ -33,18 +33,48 @@ export type Booking = {
 
 export const SHOP = {
   name: "Pangkas",
-  tagline: "Barbershop",
-  city: "Medan",
-  address: "Jl. Gatot Subroto No. 88, Medan",
+  tagline: "Hair Style Studio",
+  city: "Pangkalan Berandan",
+  address:
+    "Jalan Alur Dua, Rel Tangkah Lagan, Pangkalan Berandan, Sumatera Utara, Indonesia",
   hours: "10.00–21.00",
-  lastBooking: "20.30",
-  openHour: 10,
-  closeHour: 21,
+  hoursText: "Sen–Kam & Sab 10.00–21.00 · Jum & Min 14.00–22.00",
   slotStep: 30, // menit
   timezone: "Asia/Jakarta",
-  whatsapp: process.env.SHOP_WHATSAPP || "6281234567890",
-  instagram: "@pangkas.id",
+  whatsapp: process.env.SHOP_WHATSAPP || "6281397339072",
+  instagram: "@hairstylestudioo_",
 };
+
+/**
+ * Jam buka per hari (0 = Minggu … 6 = Sabtu), format 24 jam.
+ * Jumat & Minggu buka lebih siang dan tutup lebih malam.
+ */
+const SCHEDULE: Record<number, { open: number; close: number }> = {
+  0: { open: 14, close: 22 }, // Minggu
+  1: { open: 10, close: 21 },
+  2: { open: 10, close: 21 },
+  3: { open: 10, close: 21 },
+  4: { open: 10, close: 21 },
+  5: { open: 14, close: 22 }, // Jumat
+  6: { open: 10, close: 21 }, // Sabtu
+};
+
+/** Jadwal buka untuk tanggal ISO (YYYY-MM-DD), dihitung di zona WIB. */
+export function scheduleFor(dateISO: string) {
+  const weekday = new Date(dateISO + "T12:00:00+07:00").getDay();
+  const s = SCHEDULE[weekday] ?? { open: 10, close: 21 };
+  return {
+    ...s,
+    label: `${String(s.open).padStart(2, "0")}.00–${String(s.close).padStart(2, "0")}.00`,
+  };
+}
+
+/** Jam terakhir yang masih bisa dipesan (30 menit sebelum tutup). */
+export function lastBookingFor(dateISO: string) {
+  const { close } = scheduleFor(dateISO);
+  return `${String(close - 1).padStart(2, "0")}.30`;
+}
+
 
 export const SERVICES: Service[] = [
   {

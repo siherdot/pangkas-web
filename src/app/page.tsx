@@ -56,7 +56,7 @@ export default function Home() {
         <div className="relative mx-auto grid max-w-6xl gap-10 px-5 py-16 md:grid-cols-[1.15fr_0.85fr] md:py-24">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brass">
-              Barbershop — {SHOP.city}
+              Hair Style Studio — {SHOP.city}
             </p>
             <h1 className="display mt-5 text-6xl sm:text-7xl md:text-8xl">
               Potong Rapi
@@ -84,8 +84,8 @@ export default function Home() {
             </div>
             <div className="mt-9 flex flex-wrap gap-8 text-sm">
               <div>
-                <p className="display text-3xl text-brass">{SHOP.hours}</p>
-                <p className="text-cream/50">Buka setiap hari</p>
+                <p className="display text-3xl text-brass">10–21</p>
+                <p className="text-cream/50">Jum &amp; Min 14–22</p>
               </div>
               <div>
                 <p className="display text-3xl text-brass">Mulai Rp25rb</p>
@@ -261,8 +261,7 @@ export default function Home() {
           <div>
             <h3 className="display text-2xl">Jam buka</h3>
             <p className="mt-2 text-sm text-ink/60">
-              Setiap hari {SHOP.hours} WIB. Booking terakhir pukul{" "}
-              {SHOP.lastBooking}.
+              {SHOP.hoursText} WIB.
             </p>
           </div>
           <div>

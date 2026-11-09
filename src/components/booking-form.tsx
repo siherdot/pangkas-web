@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Barber, Service } from "@/lib/catalog";
+import { lastBookingFor, scheduleFor } from "@/lib/catalog";
 
 type Availability = Record<string, Record<string, boolean>>;
 
@@ -265,7 +266,11 @@ export default function BookingForm({
             Pilih jam kedatangan
           </span>
           <span className="text-xs text-ink/40">
-            {loading ? "memuat slot…" : `slot kosong untuk ${barberName}`}
+            {loading
+              ? "memuat slot…"
+              : date
+                ? `buka ${scheduleFor(date).label} · slot terakhir ${lastBookingFor(date)}`
+                : "pilih tanggal dulu"}
           </span>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">

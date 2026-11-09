@@ -15,11 +15,11 @@ const bebas = Bebas_Neue({
 });
 
 export const metadata: Metadata = {
-  title: "Pangkas — Barbershop Medan | Booking Tanpa Antre",
+  title: "Pangkas Hair Style Studio — Pangkalan Berandan | Booking Tanpa Antre",
   description:
-    "Barbershop Pangkas: potong rapi, harga transparan, booking slot jam dan barber favorit. Datang tinggal duduk.",
+    "Pangkas Hair Style Studio di Pangkalan Berandan: potong rapi, harga transparan, booking slot jam dan barber favorit. Datang tinggal duduk.",
   openGraph: {
-    title: "Pangkas — Barbershop Medan",
+    title: "Pangkas Hair Style Studio — Pangkalan Berandan",
     description: "Booking dulu, datang tinggal duduk. Harga mulai Rp25rb.",
     type: "website",
   },
