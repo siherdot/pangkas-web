@@ -170,6 +170,9 @@ export default function ShopTab({
               onChange={(e) => set("heroSubline", e.target.value)}
               className={inputCls + " mt-1"}
             />
+            <span className="mt-1 block text-xs text-ink/40">
+              Teks biasa, tanpa HTML. Enter = baris baru.
+            </span>
           </label>
         </div>
       </div>

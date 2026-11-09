@@ -153,7 +153,7 @@ export default function BookingForm({
         </p>
         <h3 className="display mt-3 text-5xl">Kode kamu {done.code}</h3>
         <p className="mt-4 text-sm text-ink/70">
-          Simpan kode ini. Datang 5 menit sebelum perkiraan jam di bawah,
+          Simpan kode ini. Datang 10 menit sebelum perkiraan jam di bawah,
           tunjukkan kode ke barber.
         </p>
         <dl className="mt-6 grid gap-3 rounded-2xl bg-cream p-5 text-sm sm:grid-cols-2">

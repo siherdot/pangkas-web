@@ -100,7 +100,7 @@ export default function Dashboard({
 
   return (
     <main className="flex-1 bg-cream">
-      <header className="border-b border-ink/10 bg-white">
+      <header className="sticky top-0 z-30 border-b border-ink/10 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white">

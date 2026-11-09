@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
     instagram: "@hairstylestudioo_",
     heroHeadline: "Potong Rapi Tanpa Antre Lama",
     heroSubline:
-      "Pilih layanan, pilih barber favorit, tentukan jamnya dari HP. Pas datang, kursi sudah siap — tidak perlu menunggu giliran di tempat.",
+      "Pilih layanan, pilih barber favorit, lalu ambil nomor antrean dari HP. Pas datang, kursi sudah siap — tidak perlu menunggu giliran di tempat.",
     hoursNote: "Sen–Kam & Sab 10.00–21.00 · Jum & Min 14.00–22.00",
     slotStep: 30,
     schedule: {
@@ -176,8 +176,16 @@ export function validateSettings(input: unknown): {
   if (!raw?.shop) errors.push({ field: "Data toko", message: "Data toko kosong." });
   const shop: Settings["shop"] = { ...DEFAULT_SETTINGS.shop, ...(raw?.shop ?? {}) };
 
+  const strip = (v: string) =>
+    v
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]*>/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
   const text = (v: unknown, field: string, min: number, max: number) => {
-    const s = String(v ?? "").trim();
+    const s = strip(String(v ?? ""));
     if (s.length < min) errors.push({ field, message: `${field} wajib diisi.` });
     if (s.length > max) errors.push({ field, message: `${field} terlalu panjang.` });
     return s;

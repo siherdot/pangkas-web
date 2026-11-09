@@ -78,8 +78,11 @@ export default async function Home() {
             <h1 className="display mt-5 text-6xl sm:text-7xl md:text-8xl">
               {shop.heroHeadline}
             </h1>
-            <p className="mt-6 max-w-xl text-base text-cream/70 sm:text-lg">
+            <p className="mt-6 max-w-xl whitespace-pre-line text-base text-cream/70 sm:text-lg">
               {shop.heroSubline}
+            </p>
+            <p className="mt-2 text-sm font-semibold text-brass-soft">
+              Datang 10 menit sebelum jam booking.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <a

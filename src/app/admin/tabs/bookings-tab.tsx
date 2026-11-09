@@ -214,7 +214,7 @@ export default function BookingsTab({ today }: { today: string }) {
         </button>
       </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           ["Booking aktif", String(stats.total), `${stats.pending} baru · ${stats.confirmed} konfirmasi`],
           ["Selesai", String(stats.done), "sudah dilayani"],
@@ -225,11 +225,13 @@ export default function BookingsTab({ today }: { today: string }) {
             byBarber[0] ? `${byBarber[0][1]} booking` : "belum ada",
           ],
         ].map(([title, value, sub]) => (
-          <div key={title} className="rounded-2xl border border-ink/10 bg-white p-5">
+          <div key={title} className="rounded-2xl border border-ink/10 bg-white p-4 sm:p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-ink/40">
               {title}
             </p>
-            <p className="display mt-2 text-4xl">{value}</p>
+            <p className="display mt-2 break-words text-2xl leading-tight sm:text-4xl">
+              {value}
+            </p>
             <p className="mt-1 text-xs text-ink/45">{sub}</p>
           </div>
         ))}
