@@ -87,8 +87,18 @@ export function timeOf(minutes: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Perkiraan durasi layanan per orang untuk estimasi jam dilayani. */
+/** Durasi cadangan kalau layanan tidak ditemukan (menit). */
 export const ESTIMATE_MIN = Number(process.env.BOOKING_ESTIMATE_MINUTES || 30);
+
+/** Menit yang dipakai satu booking = jumlah orang × durasi layanan. */
+function bookingMinutes(
+  b: { serviceId: string; pax?: number },
+  settings: Settings,
+) {
+  const dur =
+    settings.services.find((s) => s.id === b.serviceId)?.duration ?? ESTIMATE_MIN;
+  return Math.max(1, b.pax ?? 1) * dur;
+}
 
 /** Menit sejak tengah malam, waktu Jakarta. */
 function nowMinutesJakarta() {
@@ -138,6 +148,7 @@ export async function queueSnapshot(
       b.date === date && b.barberId === barberId && isActive(b.status),
   );
   const people = rows.reduce((sum, b) => sum + (b.pax ?? 1), 0);
+  const busyMinutes = rows.reduce((sum, b) => sum + bookingMinutes(b, settings), 0);
   const past = date < today;
   const closed = date === today && now >= close * 60;
   const base = date === today ? Math.max(open * 60, now) : open * 60;
@@ -146,7 +157,7 @@ export async function queueSnapshot(
     barberId,
     total: people,
     nextPosition: people + 1,
-    nextEstimate: timeOf(base + people * ESTIMATE_MIN),
+    nextEstimate: timeOf(base + busyMinutes),
     open: timeOf(open * 60),
     close: timeOf(close * 60),
     past,
@@ -204,7 +215,12 @@ export async function createBooking(input: CreateBookingInput) {
       input.date === today ? Math.max(open * 60, nowMinutesJakarta()) : open * 60;
     const pax = Math.min(5, Math.max(1, Math.round(Number(input.pax) || 1)));
     const peopleAhead = sameDay.reduce((sum, b) => sum + (b.pax ?? 1), 0);
-    const estimateMinutes = base + peopleAhead * ESTIMATE_MIN;
+    const minutesAhead = sameDay.reduce(
+      (sum, b) => sum + bookingMinutes(b, settings),
+      0,
+    );
+    const estimateMinutes = base + minutesAhead;
+    const ownMinutes = pax * (service.duration || ESTIMATE_MIN);
     const estimated = timeOf(estimateMinutes);
     const year = input.date.slice(0, 4);
     const seq = db.bookings.filter((b) => b.date.startsWith(year)).length + 1;
@@ -235,7 +251,7 @@ export async function createBooking(input: CreateBookingInput) {
         total: peopleAhead + pax,
         position: peopleAhead + 1,
         estimate: estimated,
-        pastClose: estimateMinutes >= close * 60,
+        pastClose: estimateMinutes + ownMinutes > close * 60,
       },
     };
   });

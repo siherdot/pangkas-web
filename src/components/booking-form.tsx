@@ -209,7 +209,7 @@ export default function BookingForm({
             </div>
             <p className="mt-2 text-sm text-ink/60">
               Perkiraan jam dilayani <span className="font-semibold text-ink">± {done.time} WIB</span>
-              {" "}(hitungan 30 menit per orang).
+              {" "}(durasi per orang sesuai layanan yang dipilih).
             </p>
             {done.queue.pastClose && (
               <p className="mt-2 rounded-xl bg-amber-100 px-3 py-2 text-sm text-amber-900">
@@ -345,7 +345,7 @@ export default function BookingForm({
             {loading
               ? "memuat antrian…"
               : snap
-                ? `buka ${snap.open}–${snap.close} · 30 menit/orang`
+                ? `buka ${snap.open}–${snap.close} · durasi sesuai layanan`
                 : ""}
           </span>
         </div>
