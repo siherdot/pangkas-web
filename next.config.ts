@@ -2,8 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // cacheComponents & partialPrefetching dimatikan: halaman admin membaca cookie
+  // di server, dan mode itu menolak route dinamis kecuali dibungkus Suspense.
+
   // output standalone = hasil build jadi satu folder berisi server.js mandiri,
   // image Docker jadi kecil (tidak ikut menyalin node_modules penuh)
   output: "standalone",
