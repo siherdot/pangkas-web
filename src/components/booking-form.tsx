@@ -203,8 +203,8 @@ export default function BookingForm({
             <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-2">
               <p className="display text-4xl">{done.queue.total} orang</p>
               <p className="text-sm text-ink/60">
-                Kamu urutan ke-{done.queue.position} dari {done.queue.total} orang
-                di {barberName}.
+                Kamu{pax > 1 ? ` (${pax} orang)` : ""} masuk urutan ke-
+                {done.queue.position} dari {done.queue.total} orang di {barberName}.
               </p>
             </div>
             <p className="mt-2 text-sm text-ink/60">
