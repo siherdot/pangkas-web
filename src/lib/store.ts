@@ -59,6 +59,11 @@ function withLock<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/** Booking yang masih menempati antrian: baru atau terkonfirmasi. */
+export function isActive(status: BookingStatus) {
+  return status === "pending" || status === "confirmed";
+}
+
 export function minutesOf(time: string) {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
@@ -105,7 +110,7 @@ export async function availability(date: string, serviceId: string) {
   const now = nowMinutesJakarta();
   const pastDate = date < today;
   const active = db.bookings.filter(
-    (b) => b.date === date && b.status !== "cancelled",
+    (b) => b.date === date && isActive(b.status),
   );
   const result: Record<string, Record<string, boolean>> = {};
   for (const barber of settings.barbers.filter((b) => b.active !== false)) {
@@ -239,7 +244,7 @@ export async function queueInfo(bookingId: string): Promise<QueueInfo | null> {
     (b) =>
       b.date === target.date &&
       b.barberId === target.barberId &&
-      b.status !== "cancelled",
+      isActive(b.status),
   );
   const position =
     rows.filter(
@@ -281,7 +286,7 @@ export function decorate(rows: Booking[], settings: Settings): DecoratedBooking[
 }
 
 export function summary(rows: DecoratedBooking[]) {
-  const active = rows.filter((b) => b.status !== "cancelled");
+  const active = rows.filter((b) => isActive(b.status));
   const revenue = rows
     .filter((b) => b.status === "done")
     .reduce((sum, b) => sum + (b.servicePrice ?? 0), 0);

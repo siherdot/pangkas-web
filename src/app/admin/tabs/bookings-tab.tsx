@@ -85,7 +85,7 @@ export default function BookingsTab({ today }: { today: string }) {
       .filter((r) => r.status === "done")
       .reduce((s, r) => s + r.servicePrice, 0);
     return {
-      total: rows.filter((r) => r.status !== "cancelled").length,
+      total: rows.filter((r) => r.status === "pending" || r.status === "confirmed").length,
       pending: rows.filter((r) => r.status === "pending").length,
       confirmed: rows.filter((r) => r.status === "confirmed").length,
       done: rows.filter((r) => r.status === "done").length,
@@ -96,7 +96,7 @@ export default function BookingsTab({ today }: { today: string }) {
   const byBarber = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of rows) {
-      if (r.status === "cancelled") continue;
+      if (r.status === "done" || r.status === "cancelled") continue;
       map.set(r.barberName, (map.get(r.barberName) ?? 0) + 1);
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
