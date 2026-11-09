@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { createBooking, decorate, listBookings, queueInfo } from "@/lib/store";
+import { createBooking, decorate, listBookings } from "@/lib/store";
 import { readSettings } from "@/lib/settings";
 import { clientIp, releaseBookingSlot, reserveBookingSlot } from "@/lib/rate-limit";
 
@@ -30,7 +30,6 @@ export async function POST(request: Request) {
   const serviceId = String(body.serviceId ?? "");
   const barberId = String(body.barberId ?? "");
   const date = String(body.date ?? "");
-  const time = String(body.time ?? "");
   const note = body.note ? String(body.note) : undefined;
 
   if (name.length < 2) {
@@ -46,8 +45,8 @@ export async function POST(request: Request) {
   ) {
     return NextResponse.json({ message: "Layanan atau barber tidak dikenal." }, { status: 422 });
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
-    return NextResponse.json({ message: "Tanggal atau jam tidak valid." }, { status: 422 });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ message: "Tanggal tidak valid." }, { status: 422 });
   }
 
   const ip = clientIp(request.headers);
@@ -64,31 +63,41 @@ export async function POST(request: Request) {
   }
 
   try {
-    const booking = await createBooking({
+    const { booking, queue } = await createBooking({
       name,
       phone,
       serviceId,
       barberId,
       date,
-      time,
       note,
       ip,
     });
-    const queue = await queueInfo(booking.id);
     return NextResponse.json(
       { ok: true, code: booking.code, id: booking.id, queue },
       { status: 201 },
     );
   } catch (err) {
     await releaseBookingSlot(ip);
-    if (err instanceof Error && err.message === "SLOT_TAKEN") {
-      return NextResponse.json({ error: "SLOT_TAKEN" }, { status: 409 });
-    }
     if (err instanceof Error && err.message === "SLOT_PAST") {
       return NextResponse.json(
-        { error: "SLOT_PAST", message: "Jam itu sudah lewat. Pilih jam lain atau tanggal berikutnya." },
+        { error: "SLOT_PAST", message: "Tanggal itu sudah lewat. Pilih tanggal lain." },
         { status: 409 },
       );
+    }
+    if (err instanceof Error && err.message === "SHOP_CLOSED") {
+      return NextResponse.json(
+        {
+          error: "SHOP_CLOSED",
+          message: "Sudah lewat jam tutup hari ini. Silakan pilih tanggal berikutnya.",
+        },
+        { status: 409 },
+      );
+    }
+    if (err instanceof Error && err.message === "SERVICE_UNKNOWN") {
+      return NextResponse.json({ message: "Layanan tidak tersedia." }, { status: 422 });
+    }
+    if (err instanceof Error && err.message === "BARBER_UNKNOWN") {
+      return NextResponse.json({ message: "Barber tidak tersedia." }, { status: 422 });
     }
     console.error("[booking] create failed", err);
     return NextResponse.json({ message: "Gagal menyimpan booking." }, { status: 500 });

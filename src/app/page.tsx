@@ -207,15 +207,15 @@ export default async function Home() {
               Booking Online
             </p>
             <h2 className="display mt-3 text-5xl sm:text-6xl">
-              Amankan jam kamu dalam waktu kurang dari semenit
+              Ambil antrean dalam waktu kurang dari semenit
             </h2>
             <p className="mt-4 text-ink/60">
-              Pilih layanan, barber, tanggal, dan jam. Kamu langsung dapat kode
-              booking — slot yang sudah penuh tidak bisa dipilih.
+              Pilih layanan, barber, dan tanggal. Sistem menghitung antrian dan
+              memberi perkiraan jam dilayani — kamu langsung dapat kode booking.
             </p>
             <ul className="mt-8 space-y-4 text-sm">
               {[
-                ["Jam pasti, bukan kira-kira", "Kode booking mengunci jam kedatanganmu. Datang sesuai jam, langsung dilayani."],
+                ["Antrean otomatis", "Sistem menyusun urutan dan memperkirakan jam dilayani (30 menit per orang)."],
                 ["Harga transparan", "Total booking terlihat di ringkasan — bayar sesuai yang tertera."],
                 ["Konfirmasi WhatsApp", "Setelah booking, satu klik untuk konfirmasi ke nomor barbershop."],
               ].map(([title, body]) => (

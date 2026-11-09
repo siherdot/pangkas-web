@@ -23,7 +23,7 @@ export function waConfirmation(i: WaConfirmInput) {
     `*Nama:* ${i.name}`,
     `*Layanan:* ${i.serviceName}`,
     `*Barber:* ${i.barberName}`,
-    `*Jadwal:* ${i.dateLabel}, ${i.time} WIB`,
+    `*Perkiraan jam:* ${i.dateLabel}, ± ${i.time} WIB`,
   ];
   const note = i.note?.trim();
   if (note) lines.push(`*Catatan:* ${note}`);

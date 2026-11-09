@@ -76,18 +76,8 @@ export function timeOf(minutes: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Semua slot mulai yang mungkin untuk satu tanggal, sesuai jam buka hari itu. */
-export function slotStarts(date: string, settings: Settings) {
-  const { open, close } = scheduleFor(date, settings.shop.schedule);
-  const step = settings.shop.slotStep || 30;
-  const out: string[] = [];
-  for (let m = open * 60; m < close * 60; m += step) out.push(timeOf(m));
-  return out;
-}
-
-function overlaps(aStart: number, aDur: number, bStart: number, bDur: number) {
-  return aStart < bStart + bDur && bStart < aStart + aDur;
-}
+/** Perkiraan durasi layanan per orang untuk estimasi jam dilayani. */
+export const ESTIMATE_MIN = Number(process.env.BOOKING_ESTIMATE_MINUTES || 30);
 
 /** Menit sejak tengah malam, waktu Jakarta. */
 function nowMinutesJakarta() {
@@ -101,42 +91,55 @@ function nowMinutesJakarta() {
   return h * 60 + m;
 }
 
-export async function availability(date: string, serviceId: string) {
+export type QueueSnapshot = {
+  date: string;
+  barberId: string;
+  /** jumlah booking aktif barber itu pada tanggal itu */
+  total: number;
+  /** urutan kalau ikut booking sekarang (1 = langsung dilayani) */
+  nextPosition: number;
+  /** perkiraan jam dilayani untuk posisi berikutnya */
+  nextEstimate: string;
+  open: string;
+  close: string;
+  /** tanggal sudah lewat */
+  past: boolean;
+  /** hari ini tapi sudah lewat jam tutup */
+  closed: boolean;
+};
+
+/**
+ * Kondisi antrian satu barber pada satu tanggal.
+ * Tanpa pemilihan jam: urutan = booking aktif yang sudah ada, estimasi 30 menit per orang
+ * dihitung dari jam buka (atau jam sekarang kalau hari ini).
+ */
+export async function queueSnapshot(
+  date: string,
+  barberId: string,
+): Promise<QueueSnapshot> {
   const settings = await readSettings();
-  const service = settings.services.find((s) => s.id === serviceId);
-  const dur = service?.duration ?? 30;
-  const { close } = scheduleFor(date, settings.shop.schedule);
-  const db = await readDb();
+  const { open, close } = scheduleFor(date, settings.shop.schedule);
   const today = todayISO();
   const now = nowMinutesJakarta();
-  const pastDate = date < today;
-  const active = db.bookings.filter(
-    (b) => b.date === date && isActive(b.status),
+  const db = await readDb();
+  const rows = db.bookings.filter(
+    (b) =>
+      b.date === date && b.barberId === barberId && isActive(b.status),
   );
-  const result: Record<string, Record<string, boolean>> = {};
-  for (const barber of settings.barbers.filter((b) => b.active !== false)) {
-    result[barber.id] = {};
-    for (const slot of slotStarts(date, settings)) {
-      const start = minutesOf(slot);
-      // tanggal sudah lewat, jam sudah lewat hari ini, atau lewat jam tutup
-      if (pastDate || start + dur > close * 60 || (date === today && start <= now)) {
-        result[barber.id][slot] = false;
-        continue;
-      }
-      const clash = active.some(
-        (b) =>
-          b.barberId === barber.id &&
-          overlaps(
-            start,
-            dur,
-            minutesOf(b.time),
-            settings.services.find((s) => s.id === b.serviceId)?.duration ?? 30,
-          ),
-      );
-      result[barber.id][slot] = !clash;
-    }
-  }
-  return result;
+  const past = date < today;
+  const closed = date === today && now >= close * 60;
+  const base = date === today ? Math.max(open * 60, now) : open * 60;
+  return {
+    date,
+    barberId,
+    total: rows.length,
+    nextPosition: rows.length + 1,
+    nextEstimate: timeOf(base + rows.length * ESTIMATE_MIN),
+    open: timeOf(open * 60),
+    close: timeOf(close * 60),
+    past,
+    closed,
+  };
 }
 
 export type CreateBookingInput = {
@@ -145,19 +148,16 @@ export type CreateBookingInput = {
   serviceId: string;
   barberId: string;
   date: string;
-  time: string;
   note?: string;
   ip?: string;
 };
 
 export async function createBooking(input: CreateBookingInput) {
   const today = todayISO();
-  if (
-    input.date < today ||
-    (input.date === today && minutesOf(input.time) <= nowMinutesJakarta())
-  ) {
-    throw new Error("SLOT_PAST");
-  }
+  if (input.date < today) throw new Error("SLOT_PAST");
+  const snap = await queueSnapshot(input.date, input.barberId);
+  if (snap.closed) throw new Error("SHOP_CLOSED");
+
   const settings = await readSettings();
   const service = settings.services.find(
     (s) => s.id === input.serviceId && s.active !== false,
@@ -170,10 +170,18 @@ export async function createBooking(input: CreateBookingInput) {
 
   return withLock(async () => {
     const db = await readDb();
-    const av = await availability(input.date, input.serviceId);
-    if (!av[input.barberId] || av[input.barberId][input.time] !== true) {
-      throw new Error("SLOT_TAKEN");
-    }
+    // hitung ulang di dalam lock supaya dua orang tidak dapat nomor antrian sama
+    const sameDay = db.bookings.filter(
+      (b) =>
+        b.date === input.date &&
+        b.barberId === input.barberId &&
+        isActive(b.status),
+    );
+    const { open, close } = scheduleFor(input.date, settings.shop.schedule);
+    const base =
+      input.date === today ? Math.max(open * 60, nowMinutesJakarta()) : open * 60;
+    const estimateMinutes = base + sameDay.length * ESTIMATE_MIN;
+    const estimated = timeOf(estimateMinutes);
     const year = input.date.slice(0, 4);
     const seq = db.bookings.filter((b) => b.date.startsWith(year)).length + 1;
     const code = `HSS-${year}-${String(seq).padStart(4, "0")}`;
@@ -185,7 +193,7 @@ export async function createBooking(input: CreateBookingInput) {
       serviceId: input.serviceId,
       barberId: input.barberId,
       date: input.date,
-      time: input.time,
+      time: estimated,
       status: "pending",
       note: input.note?.trim() || undefined,
       ip: input.ip,
@@ -196,7 +204,15 @@ export async function createBooking(input: CreateBookingInput) {
     };
     db.bookings.push(booking);
     await writeDb(db);
-    return booking;
+    return {
+      booking,
+      queue: {
+        total: sameDay.length + 1,
+        position: sameDay.length + 1,
+        estimate: estimated,
+        pastClose: estimateMinutes >= close * 60,
+      },
+    };
   });
 }
 
@@ -230,34 +246,6 @@ export async function setStatus(id: string, status: BookingStatus) {
     await writeDb(db);
     return row;
   });
-}
-
-export type QueueInfo = {
-  total: number;
-  position: number;
-};
-
-/** Total antrian satu barber pada tanggal itu, plus urutan booking ini. */
-export async function queueInfo(bookingId: string): Promise<QueueInfo | null> {
-  const db = await readDb();
-  const target = db.bookings.find((b) => b.id === bookingId);
-  if (!target) return null;
-
-  const rows = db.bookings.filter(
-    (b) =>
-      b.date === target.date &&
-      b.barberId === target.barberId &&
-      isActive(b.status),
-  );
-  const position =
-    rows.filter(
-      (b) =>
-        b.id !== target.id &&
-        (b.time < target.time ||
-          (b.time === target.time && b.createdAt < target.createdAt)),
-    ).length + 1;
-
-  return { total: rows.length, position };
 }
 
 export function todayISO() {

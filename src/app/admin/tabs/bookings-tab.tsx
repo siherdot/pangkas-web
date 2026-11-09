@@ -204,7 +204,7 @@ export default function BookingsTab({ today }: { today: string }) {
           <table className="w-full text-left text-sm">
             <thead className="bg-cream text-xs uppercase tracking-wider text-ink/45">
               <tr>
-                <th className="px-4 py-3">Jadwal</th>
+                <th className="px-4 py-3">Perkiraan</th>
                 <th className="px-4 py-3">Kode</th>
                 <th className="px-4 py-3">Pelanggan</th>
                 <th className="px-4 py-3">Layanan</th>

@@ -2,14 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Barber, DaySchedule, Service } from "@/lib/shared";
-import { lastBookingFor, scheduleFor } from "@/lib/shared";
+import { scheduleFor } from "@/lib/shared";
 import { waConfirmation } from "@/lib/message";
-
-type Availability = Record<string, Record<string, boolean>>;
 
 type QueueInfo = {
   total: number;
   position: number;
+  estimate: string;
+  pastClose?: boolean;
+};
+
+type Snapshot = {
+  total: number;
+  nextPosition: number;
+  nextEstimate: string;
+  open: string;
+  close: string;
+  past: boolean;
+  closed: boolean;
 };
 
 type Props = {
@@ -48,33 +58,35 @@ export default function BookingForm({
   const [barberId, setBarberId] = useState(barbers[0]?.id ?? "");
   const [date, setDate] = useState("");
   const [today, setToday] = useState("");
-  const [time, setTime] = useState("");
   const [note, setNote] = useState("");
-  const [av, setAv] = useState<Availability | null>(null);
+  const [snap, setSnap] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState<{ code: string; queue: QueueInfo | null } | null>(
-    null,
-  );
+  const [done, setDone] = useState<{
+    code: string;
+    queue: QueueInfo | null;
+    time: string;
+  } | null>(null);
 
   const service = useMemo(
     () => services.find((s) => s.id === serviceId),
     [services, serviceId],
   );
+  const barberName = barbers.find((b) => b.id === barberId)?.name ?? "—";
 
-  const loadSlots = useCallback(async () => {
-    if (!date || !serviceId) return;
+  const loadQueue = useCallback(async () => {
+    if (!date || !barberId) return;
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/slots?date=${date}&service=${encodeURIComponent(serviceId)}`,
+        `/api/queue?date=${date}&barber=${encodeURIComponent(barberId)}`,
         { cache: "no-store" },
       );
-      if (res.ok) setAv((await res.json()) as Availability);
+      if (res.ok) setSnap((await res.json()) as Snapshot);
     } finally {
       setLoading(false);
     }
-  }, [date, serviceId]);
+  }, [date, barberId]);
 
   useEffect(() => {
     const t = new Intl.DateTimeFormat("en-CA", {
@@ -88,52 +100,32 @@ export default function BookingForm({
   }, []);
 
   useEffect(() => {
-    setTime("");
-    void loadSlots();
-  }, [loadSlots]);
-
-  const slots = useMemo(() => {
-    if (!av || !av[barberId]) return [];
-    return Object.entries(av[barberId]).map(([t, free]) => ({ t, free }));
-  }, [av, barberId]);
+    void loadQueue();
+  }, [loadQueue]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!time) {
-      setError("Pilih jam kedatangan dulu.");
-      return;
-    }
     setLoading(true);
     try {
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, serviceId, barberId, date, time, note }),
+        body: JSON.stringify({ name, phone, serviceId, barberId, date, note }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (data?.error === "SLOT_TAKEN") {
-          setError("Slot itu baru saja diambil orang lain. Pilih jam lain.");
-          setTime("");
-          void loadSlots();
-        } else if (data?.error === "SLOT_PAST") {
-          setError("Jam itu sudah lewat. Pilih jam lain atau tanggal berikutnya.");
-          setTime("");
-          void loadSlots();
-        } else {
-          setError(data?.message || "Gagal membuat booking. Coba lagi.");
-        }
+        setError(data?.message || "Gagal membuat booking. Coba lagi.");
+        void loadQueue();
         return;
       }
-      setDone({ code: data.code, queue: (data.queue as QueueInfo) ?? null });
-      void loadSlots();
+      const q = (data.queue as QueueInfo) ?? null;
+      setDone({ code: data.code, queue: q, time: q?.estimate ?? "" });
+      void loadQueue();
     } finally {
       setLoading(false);
     }
   }
-
-  const barberName = barbers.find((b) => b.id === barberId)?.name ?? "—";
 
   const waLink = done
     ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(
@@ -144,7 +136,7 @@ export default function BookingForm({
           serviceName: service?.name ?? "—",
           barberName,
           dateLabel: prettyDate(date),
-          time,
+          time: done.time,
           priceLabel: rupiah(service?.price ?? 0),
           note,
         }),
@@ -159,8 +151,8 @@ export default function BookingForm({
         </p>
         <h3 className="display mt-3 text-5xl">Kode kamu {done.code}</h3>
         <p className="mt-4 text-sm text-ink/70">
-          Simpan kode ini. Datang 5 menit lebih awal, tunjukkan kode ke barber —
-          kursi langsung siap.
+          Simpan kode ini. Datang 5 menit sebelum perkiraan jam di bawah,
+          tunjukkan kode ke barber.
         </p>
         <dl className="mt-6 grid gap-3 rounded-2xl bg-cream p-5 text-sm sm:grid-cols-2">
           <div>
@@ -176,14 +168,12 @@ export default function BookingForm({
             <dd className="font-semibold">{barberName}</dd>
           </div>
           <div>
-            <dt className="text-ink/50">Jadwal</dt>
-            <dd className="font-semibold">
-              {prettyDate(date)} · {time}
-            </dd>
+            <dt className="text-ink/50">Tanggal</dt>
+            <dd className="font-semibold">{prettyDate(date)}</dd>
           </div>
           <div>
-            <dt className="text-ink/50">Durasi</dt>
-            <dd className="font-semibold">± {service?.duration} menit</dd>
+            <dt className="text-ink/50">Perkiraan jam dilayani</dt>
+            <dd className="font-semibold">± {done.time} WIB</dd>
           </div>
           <div>
             <dt className="text-ink/50">Bayar di tempat</dt>
@@ -210,9 +200,16 @@ export default function BookingForm({
               </p>
             </div>
             <p className="mt-2 text-sm text-ink/60">
-              Datang 5 menit sebelum jam {time} WIB — kursi disiapkan sesuai
-              urutan jam.
+              Perkiraan jam dilayani <span className="font-semibold text-ink">± {done.time} WIB</span>
+              {" "}(hitungan 30 menit per orang).
             </p>
+            {done.queue.pastClose && (
+              <p className="mt-2 rounded-xl bg-amber-100 px-3 py-2 text-sm text-amber-900">
+                Antrean hari itu sudah padat dan melewati jam tutup. Konfirmasi
+                ke barber lewat WhatsApp — kemungkinan dilayani di luar jam
+                normal atau dijadwalkan ulang.
+              </p>
+            )}
           </div>
         )}
 
@@ -229,10 +226,10 @@ export default function BookingForm({
             type="button"
             onClick={() => {
               setDone(null);
-              setTime("");
               setName("");
               setPhone("");
               setNote("");
+              void loadQueue();
             }}
             className="rounded-full border border-ink/20 px-6 py-3 text-sm font-semibold transition hover:border-ink/40"
           >
@@ -242,6 +239,12 @@ export default function BookingForm({
       </div>
     );
   }
+
+  const warning = snap?.past
+    ? "Tanggal sudah lewat — pilih tanggal lain."
+    : snap?.closed
+      ? "Sudah lewat jam tutup hari ini — pilih tanggal berikutnya."
+      : "";
 
   return (
     <form
@@ -299,7 +302,7 @@ export default function BookingForm({
           </select>
         </label>
         <label className="block text-sm sm:col-span-2">
-          <span className="font-medium text-ink/70">Tanggal</span>
+          <span className="font-medium text-ink/70">Tanggal kedatangan</span>
           <input
             type="date"
             required
@@ -311,46 +314,39 @@ export default function BookingForm({
         </label>
       </div>
 
-      <div className="mt-6">
-        <div className="flex items-center justify-between">
+      <div className="mt-5 rounded-2xl bg-cream p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-medium text-ink/70">
-            Pilih jam kedatangan
+            Antrian {barberName} · {date ? prettyDate(date) : "pilih tanggal"}
           </span>
           <span className="text-xs text-ink/40">
             {loading
-              ? "memuat slot…"
-              : date
-                ? `buka ${scheduleFor(date, schedule).label} · slot terakhir ${lastBookingFor(date, schedule)}${
-                    date === today ? " · jam yang sudah lewat tidak bisa dipilih" : ""
-                  }`
-                : "pilih tanggal dulu"}
+              ? "memuat antrian…"
+              : snap
+                ? `buka ${snap.open}–${snap.close} · 30 menit/orang`
+                : ""}
           </span>
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-          {slots.length === 0 && (
-            <p className="col-span-full py-4 text-center text-sm text-ink/40">
-              Memuat slot…
+        {snap && (
+          <div className="mt-2 flex flex-wrap items-end gap-x-5 gap-y-1">
+            <p className="display text-3xl">{snap.total} booking</p>
+            <p className="text-sm text-ink/60">
+              Kalau kamu booking sekarang:{" "}
+              <span className="font-semibold text-ink">
+                urutan ke-{snap.nextPosition}
+              </span>
+              , perkiraan dilayani{" "}
+              <span className="font-semibold text-ink">
+                ± {snap.nextEstimate} WIB
+              </span>
             </p>
-          )}
-          {slots.map(({ t, free }) => (
-            <button
-              key={t}
-              type="button"
-              disabled={!free}
-              onClick={() => setTime(t)}
-              className={
-                "rounded-xl border px-2 py-2 text-sm font-semibold transition " +
-                (time === t
-                  ? "border-ink bg-ink text-cream"
-                  : free
-                    ? "border-ink/15 bg-cream/60 hover:border-brass"
-                    : "cursor-not-allowed border-transparent bg-ink/5 text-ink/25 line-through")
-              }
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+          </div>
+        )}
+        {warning && (
+          <p className="mt-2 rounded-xl bg-amber-100 px-3 py-2 text-sm text-amber-900">
+            {warning}
+          </p>
+        )}
       </div>
 
       <label className="mt-4 block text-sm">
@@ -379,12 +375,16 @@ export default function BookingForm({
         </p>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || Boolean(warning)}
           className="rounded-full bg-brass px-7 py-3 text-sm font-bold uppercase tracking-wide text-ink transition hover:bg-brass-soft disabled:opacity-60"
         >
           {loading ? "Memproses…" : "Buat Booking"}
         </button>
       </div>
+      <p className="mt-3 text-xs text-ink/40">
+        Jam buka {date ? scheduleFor(date, schedule).label : "—"} WIB. Tidak perlu
+        pilih jam — sistem menyusun antrian dan memperkirakan jam dilayani.
+      </p>
     </form>
   );
 }
