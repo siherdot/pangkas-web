@@ -7,6 +7,13 @@ import { waConfirmation } from "@/lib/message";
 
 type Availability = Record<string, Record<string, boolean>>;
 
+type QueueInfo = {
+  ahead: number;
+  position: number;
+  startEstimate: string;
+  sameBarber: number;
+};
+
 type Props = {
   services: Service[];
   barbers: Barber[];
@@ -48,7 +55,9 @@ export default function BookingForm({
   const [av, setAv] = useState<Availability | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState<{ code: string } | null>(null);
+  const [done, setDone] = useState<{ code: string; queue: QueueInfo | null } | null>(
+    null,
+  );
 
   const service = useMemo(
     () => services.find((s) => s.id === serviceId),
@@ -119,7 +128,7 @@ export default function BookingForm({
         }
         return;
       }
-      setDone({ code: data.code });
+      setDone({ code: data.code, queue: (data.queue as QueueInfo) ?? null });
       void loadSlots();
     } finally {
       setLoading(false);
@@ -189,6 +198,35 @@ export default function BookingForm({
             </div>
           )}
         </dl>
+
+        {done.queue && (
+          <div className="mt-4 rounded-2xl border border-brass/40 bg-brass/10 p-5">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink/50">
+              Sisa antrian · {barberName}
+            </p>
+            <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-2">
+              <p className="display text-4xl">
+                {done.queue.ahead === 0
+                  ? "Antrian pertama"
+                  : `${done.queue.ahead} orang`}
+              </p>
+              <p className="text-sm text-ink/60">
+                {done.queue.ahead === 0
+                  ? "Tidak ada yang mendahului jam kamu."
+                  : `sebelum jam ${time} · posisi ke-${done.queue.position} dari ${done.queue.sameBarber} booking ${barberName} hari itu`}
+              </p>
+            </div>
+            <p className="mt-2 text-sm text-ink/60">
+              Perkiraan mulai dilayani{" "}
+              <span className="font-semibold text-ink">
+                ± {done.queue.startEstimate} WIB
+              </span>
+              {done.queue.ahead > 0 &&
+                " — datang 5 menit sebelum jam itu, bukan sebelum jam booking."}
+            </p>
+          </div>
+        )}
+
         <div className="mt-6 flex flex-wrap gap-3">
           <a
             href={waLink}

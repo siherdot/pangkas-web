@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { createBooking, decorate, listBookings } from "@/lib/store";
+import { createBooking, decorate, listBookings, queueInfo } from "@/lib/store";
 import { readSettings } from "@/lib/settings";
 
 export async function GET(request: Request) {
@@ -51,8 +51,9 @@ export async function POST(request: Request) {
 
   try {
     const booking = await createBooking({ name, phone, serviceId, barberId, date, time, note });
+    const queue = await queueInfo(booking.id);
     return NextResponse.json(
-      { ok: true, code: booking.code, id: booking.id },
+      { ok: true, code: booking.code, id: booking.id, queue },
       { status: 201 },
     );
   } catch (err) {
